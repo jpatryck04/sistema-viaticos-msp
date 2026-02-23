@@ -12,7 +12,7 @@ Sistema desarrollado en Angular 21 para la gestión y cálculo automatizado de v
 
 ```bash
 # 1. Clonar el repositorio
-git clone [url-del-repositorio]
+git clone https://github.com/jpatryck04/sistema-viaticos-msp.git
 cd sistema-viaticos-msp
 
 # 2. Instalar dependencias
