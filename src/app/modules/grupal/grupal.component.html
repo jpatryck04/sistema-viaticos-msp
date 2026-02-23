@@ -1,0 +1,206 @@
+<div class="container-fluid">
+  <!-- Título -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0" style="color: #1F3C73;">
+      <i class="bi bi-people-fill me-2"></i>
+      Módulo Grupal - Registro Múltiple de Viáticos
+    </h4>
+    <div>
+      <small class="text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        Para imprimir, use CTRL + P
+      </small>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <i class="bi bi-funnel me-2"></i>
+      Filtros del Período
+    </div>
+    <div class="card-body">
+      <form [formGroup]="filtrosForm">
+        <div class="row">
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Mes de referencia</label>
+            <input type="month" class="form-control" formControlName="mes">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">Departamento (opcional)</label>
+            <input type="text" class="form-control" formControlName="departamento" placeholder="Todos los departamentos">
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tabla de registro grupal -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-table me-2"></i>Registro de Viáticos - Múltiples Empleados</span>
+      <div>
+        <button type="button" class="btn btn-sm btn-outline-success me-2" (click)="exportarExcel()" [disabled]="exportando">
+          <i class="bi bi-file-excel me-1"></i>
+          {{ exportando ? 'Exportando...' : 'Exportar Excel' }}
+        </button>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+        <table class="table table-bordered table-hover table-sm mb-0">
+          <thead class="sticky-top" style="background-color: #1F3C73; color: white;">
+            <tr>
+              <th style="width: 30px;">#</th>
+              <th style="min-width: 130px;">Cédula</th>
+              <th style="min-width: 200px;">Nombre</th>
+              <th style="min-width: 150px;">Cargo</th>
+              <th style="min-width: 100px;">Asig. Diaria</th>
+              <th style="min-width: 110px;">Fecha Salida</th>
+              <th style="min-width: 110px;">Hora Salida</th>
+              <th style="min-width: 110px;">Fecha Retorno</th>
+              <th style="min-width: 110px;">Hora Retorno</th>
+              <th style="min-width: 100px;">¿Turística?</th>
+              <th style="min-width: 150px;">Destino</th>
+              <th style="min-width: 100px;">Transporte</th>
+              <th style="min-width: 100px;">Total</th>
+              <th style="min-width: 100px;">Docs</th>
+              <th style="width: 50px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let fila of viajesArray.controls; let i = index; trackBy: trackByIndex" 
+                [formGroup]="fila"
+                [class.table-warning]="!fila.get('empleadoValido')?.value && fila.get('cedula')?.value">
+              
+              <!-- Número de fila -->
+              <td class="text-center align-middle">{{ i + 1 }}</td>
+              
+              <!-- Cédula -->
+              <td>
+                <input type="text" 
+                       class="form-control form-control-sm" 
+                       formControlName="cedula"
+                       placeholder="000-0000000-0"
+                       [class.is-invalid]="fila.get('cedula')?.invalid && fila.get('cedula')?.touched"
+                       (keyup)="onKeyUp($event, i)">
+              </td>
+              
+              <!-- Nombre (automático) -->
+              <td>
+                <input type="text" class="form-control form-control-sm bg-light" formControlName="nombre" readonly>
+              </td>
+              
+              <!-- Cargo (automático) -->
+              <td>
+                <input type="text" class="form-control form-control-sm bg-light" formControlName="cargo" readonly>
+              </td>
+              
+              <!-- Asignación Diaria (automático) -->
+              <td>
+                <input type="text" class="form-control form-control-sm bg-light text-end" 
+                       formControlName="asignacionDiaria" readonly
+                       value="{{ fila.get('asignacionDiaria')?.value | number:'1.2-2' }}">
+              </td>
+              
+              <!-- Fecha Salida -->
+              <td>
+                <input type="date" class="form-control form-control-sm" formControlName="fechaSalida">
+              </td>
+              
+              <!-- Hora Salida -->
+              <td>
+                <app-selector-hora formControlName="horaSalida"></app-selector-hora>
+              </td>
+              
+              <!-- Fecha Retorno -->
+              <td>
+                <input type="date" class="form-control form-control-sm" formControlName="fechaRetorno">
+              </td>
+              
+              <!-- Hora Retorno -->
+              <td>
+                <app-selector-hora formControlName="horaRetorno"></app-selector-hora>
+              </td>
+              
+              <!-- ¿Turística? -->
+              <td class="text-center">
+                <input type="checkbox" class="form-check-input" formControlName="esTuristica">
+              </td>
+              
+              <!-- Destino -->
+              <td>
+                <select class="form-select form-select-sm" formControlName="idDestino">
+                  <option value="">Seleccionar</option>
+                  <option *ngFor="let destino of destinos" [value]="destino.id">
+                    {{ destino.nombre }}
+                  </option>
+                </select>
+              </td>
+              
+              <!-- Transporte (automático) -->
+              <td class="text-end align-middle">
+                {{ formatearMoneda(fila.get('transporte')?.value || 0) }}
+              </td>
+              
+              <!-- Total Calculado -->
+              <td class="text-end align-middle fw-bold" style="color: #1F3C73;">
+                {{ formatearMoneda(fila.get('totalCalculado')?.value || 0) }}
+              </td>
+              
+              <!-- Documentos -->
+              <td class="text-center align-middle">
+                <button type="button" 
+                        class="btn btn-sm btn-outline-primary" 
+                        (click)="abrirModalDocumentos(i)"
+                        [class.btn-success]="(fila.get('documentos')?.value?.length || 0) > 0">
+                  <i class="bi bi-paperclip"></i>
+                  <span class="ms-1 badge" *ngIf="fila.get('documentos')?.value?.length as count">
+                    {{ count }}
+                  </span>
+                </button>
+              </td>
+              
+              <!-- Botón eliminar -->
+              <td class="text-center align-middle">
+                <button type="button" 
+                        class="btn btn-sm btn-outline-danger" 
+                        (click)="eliminarFila(i)"
+                        [disabled]="viajesArray.length === 1">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer text-muted">
+      <small>
+        <i class="bi bi-lightbulb me-1"></i>
+        Sugerencia: Escriba la cédula y presione TAB para autocompletar los datos del empleado.
+      </small>
+    </div>
+  </div>
+
+  <!-- Acciones -->
+  <div class="d-flex justify-content-end gap-2 mb-4">
+    <button type="button" class="btn btn-outline-secondary" (click)="limpiarFormulario()">
+      <i class="bi bi-eraser me-1"></i> Nuevo
+    </button>
+    <button type="button" 
+            class="btn" 
+            style="background-color: #1F3C73; color: white;"
+            (click)="guardarTodo()"
+            [disabled]="guardando || viajesArray.length === 0">
+      <i class="bi bi-save me-1"></i>
+      {{ guardando ? 'Guardando...' : 'Guardar todo' }}
+    </button>
+  </div>
+</div>
+
+<!-- Modal de documentos -->
+<app-modal-documentos #modalDocumentos
+                      [viajeIndex]="filaActualIndex + 1"
+                      (documentosSeleccionados)="onDocumentosSeleccionados($event)">
+</app-modal-documentos>

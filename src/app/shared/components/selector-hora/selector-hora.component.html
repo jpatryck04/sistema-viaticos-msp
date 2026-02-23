@@ -1,0 +1,33 @@
+<div class="d-flex gap-2">
+  <!-- Selector de hora -->
+  <select class="form-select form-select-sm" 
+          style="width: 80px;"
+          [(ngModel)]="hora" 
+          (change)="onHoraChange()"
+          (blur)="onBlur()"
+          [disabled]="disabled">
+    <option *ngFor="let h of horas" [value]="h">
+      {{ h.toString().padStart(2, '0') }}
+    </option>
+  </select>
+  
+  <!-- Selector de minutos -->
+  <select class="form-select form-select-sm" 
+          style="width: 80px;"
+          [(ngModel)]="minuto" 
+          (change)="onMinutoChange()"
+          (blur)="onBlur()"
+          [disabled]="disabled">
+    <option *ngFor="let m of minutos" [value]="m">{{ m }}</option>
+  </select>
+  
+  <!-- Selector de AM/PM -->
+  <select class="form-select form-select-sm" 
+          style="width: 85px;"
+          [(ngModel)]="periodo" 
+          (change)="onPeriodoChange()"
+          (blur)="onBlur()"
+          [disabled]="disabled">
+    <option *ngFor="let p of periodos" [value]="p">{{ p }}</option>
+  </select>
+</div>

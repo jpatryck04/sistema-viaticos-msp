@@ -1,0 +1,79 @@
+<div class="modal" [class.show]="mostrarModal" [style.display]="mostrarModal ? 'block' : 'none'" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" style="background-color: #1F3C73; color: white;">
+        <h5 class="modal-title">
+          <i class="bi bi-file-earmark-text me-2"></i>
+          Documentos del Viaje #{{ viajeIndex }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" (click)="cerrarModal()"></button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Área de carga -->
+        <div class="upload-area border rounded p-4 text-center mb-4" 
+             style="border: 2px dashed #1F3C73; cursor: pointer;"
+             (click)="fileInput.click()">
+          <i class="bi bi-cloud-upload fs-1" style="color: #1F3C73;"></i>
+          <p class="mb-2">Haga clic para seleccionar archivos</p>
+          <p class="text-muted small">Máximo 5MB por archivo. Formatos: PDF, JPG, PNG, DOC</p>
+          <input #fileInput type="file" multiple style="display: none;" (change)="onFileSelected($event)">
+        </div>
+        
+        <!-- Archivos pendientes de agregar -->
+        <div *ngIf="archivosSeleccionados.length > 0" class="mb-4">
+          <h6 class="fw-bold">Archivos pendientes:</h6>
+          <div class="list-group">
+            <div *ngFor="let file of archivosSeleccionados; let i = index" 
+                 class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+              <div>
+                <i [class]="getIcono(file.type) + ' me-2'"></i>
+                {{ file.name }}
+                <small class="text-muted ms-2">({{ formatearTamano(file.size) }})</small>
+              </div>
+              <button class="btn btn-sm btn-outline-danger" (click)="quitarArchivoPendiente(i)">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mt-2">
+            <button class="btn btn-primary btn-sm" style="background-color: #1F3C73;" (click)="agregarArchivos()">
+              <i class="bi bi-check-circle me-1"></i> Agregar archivos
+            </button>
+          </div>
+        </div>
+        
+        <!-- Documentos actuales -->
+        <div *ngIf="documentos.length > 0">
+          <h6 class="fw-bold">Documentos adjuntos:</h6>
+          <div class="list-group">
+            <div *ngFor="let doc of documentos; let i = index" 
+                 class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <i [class]="getIcono(doc.tipo) + ' me-2'"></i>
+                {{ doc.nombre }}
+                <small class="text-muted ms-2">({{ formatearTamano(doc.tamano) }})</small>
+              </div>
+              <button class="btn btn-sm btn-outline-danger" (click)="eliminarDocumento(i)">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div *ngIf="documentos.length === 0 && archivosSeleccionados.length === 0" 
+             class="text-center text-muted py-4">
+          <i class="bi bi-files fs-1"></i>
+          <p>No hay documentos adjuntos</p>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="cerrarModal()">Cancelar</button>
+        <button type="button" class="btn btn-primary" style="background-color: #1F3C73;" (click)="guardarDocumentos()">
+          <i class="bi bi-check-circle me-1"></i> Guardar documentos
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

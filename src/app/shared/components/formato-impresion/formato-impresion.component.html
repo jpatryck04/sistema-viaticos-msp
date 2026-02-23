@@ -1,0 +1,125 @@
+<div class="documento-print" *ngFor="let hoja of [1]">
+  <!-- Encabezado institucional EXACTAMENTE como el PDF -->
+  <div class="encabezado">
+    <div class="logo-container">
+      <!-- Aquí irá el logo cuando lo agregues -->
+      <div class="logo-placeholder">[LOGO MSP]</div>
+    </div>
+    <div class="titulos">
+      <div class="ministerio">MINISTERIO DE SALUD PUBLICA Y ASISTENCIA SOCIAL</div>
+      <div class="departamento">DEPARTAMENTO DE CONTABILIDAD</div>
+      <div class="formulario">FORMULARIO DE LIQUIDACION DE VIATICOS</div>
+    </div>
+    <div class="fecha-emision">
+      <div>FECHA: {{ fechaEmision }}</div>
+      <div>No. ___________</div>
+    </div>
+  </div>
+
+  <!-- Datos del empleado (formato exacto del PDF) -->
+  <div class="datos-empleado" *ngIf="empleado">
+    <table class="tabla-datos">
+      <tr>
+        <td class="campo">CARGO:</td>
+        <td class="valor linea" colspan="3">{{ empleado.cargo }}</td>
+      </tr>
+      <tr>
+        <td class="campo">NOMBRE:</td>
+        <td class="valor linea" colspan="3">{{ empleado.nombreCompleto }}</td>
+      </tr>
+      <tr>
+        <td class="campo">ACTIVIDAD:</td>
+        <td class="valor linea" colspan="3">COMISION DE SERVICIO</td>
+      </tr>
+      <tr>
+        <td class="campo">CEDULA:</td>
+        <td class="valor linea" style="width: 200px;">{{ empleado.cedula }}</td>
+        <td class="campo" style="width: 100px;">MES:</td>
+        <td class="valor linea" style="width: 100px;">{{ mes }} {{ anio }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Asignación diaria y sueldo -->
+  <div class="asignacion-sueldo" *ngIf="empleado">
+    <div class="asignacion">ASIGNACION DIARIA RD$ {{ formatearMonto(empleado.asignacionDiaria) }}</div>
+    <div class="sueldo">SUELDO RD$ {{ formatearMonto(empleado.sueldo) }}</div>
+  </div>
+
+  <!-- Tabla de viáticos EXACTAMENTE como el PDF -->
+  <table class="tabla-viaticos">
+    <thead>
+      <tr>
+        <th rowspan="2">DIA</th>
+        <th rowspan="2">HORA DE SALIDA</th>
+        <th rowspan="2">HORA DE RETORNO</th>
+        <th rowspan="2">LUGARES VISITADOS</th>
+        <th rowspan="2">Provincia Turística</th>
+        <th colspan="4">DIETA</th>
+        <th rowspan="2">TOTAL DIETA</th>
+        <th rowspan="2">TRANSPORTE</th>
+        <th rowspan="2">TOTAL DE GASTOS DE VIAJE</th>
+      </tr>
+      <tr>
+        <th>10%</th>
+        <th>25%</th>
+        <th>20%</th>
+        <th>45%</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let viaje of viajes">
+        <td>{{ viaje.diaStr }}</td>
+        <td>{{ viaje.horaSalida }}</td>
+        <td>{{ viaje.horaRetorno }}</td>
+        <td>{{ viaje.destino }}</td>
+        <td class="text-center">{{ viaje.esTuristica ? '5%' : '' }}</td>
+        <td class="numero">{{ formatearMonto(viaje.desayuno) }}</td>
+        <td class="numero">{{ formatearMonto(viaje.almuerzo) }}</td>
+        <td class="numero">{{ formatearMonto(viaje.cena) }}</td>
+        <td class="numero">{{ formatearMonto(viaje.alojamiento) }}</td>
+        <td class="numero">{{ formatearMonto(viaje.totalDieta) }}</td>
+        <td class="numero">{{ formatearMonto(viaje.transporte) }}</td>
+        <td class="numero">{{ formatearMonto(viaje.totalGastos) }}</td>
+      </tr>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="9" class="text-right fw-bold">TOTALES RD$</td>
+        <td class="numero fw-bold">{{ formatearMonto(getTotalDieta()) }}</td>
+        <td class="numero fw-bold">{{ formatearMonto(getTotalTransporte()) }}</td>
+        <td class="numero fw-bold">{{ formatearMonto(getTotalGeneral()) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- Línea de firmas EXACTAMENTE como el PDF -->
+  <div class="firmas">
+    <div class="firma">
+      <div class="linea">____________________</div>
+      <div>AUTORIZADO</div>
+      <div class="cargo">JEFE DE DISTRITO O SECCION</div>
+    </div>
+    <div class="firma">
+      <div class="linea">____________________</div>
+      <div>APROBADO</div>
+      <div class="cargo">DIRECTOR ADMINISTRATIVO</div>
+    </div>
+    <div class="firma">
+      <div class="linea">____________________</div>
+      <div>INTERESADO</div>
+      <div class="cargo">FIRMA</div>
+    </div>
+  </div>
+
+  <!-- Nota y distribución EXACTAMENTE como el PDF -->
+  <div class="nota">
+    <p><strong>NOTA:</strong> PARA EL COBRO DE ESTA PLANILLA DEBE ESTAR FIRMADA POR LAS PERSONAS QUE AUTORIZAN.</p>
+  </div>
+
+  <div class="distribucion">
+    <p>ORIGINAL Y DUPLICADO: PARA CONTRALOR Y AUDITOR DE LA NACION.</p>
+    <p>TRIPLICADO Y CUADRUPLICADO: DEPARTAMENTO CONTABILIDAD DEL MINISTERIO.</p>
+    <p>QUINTUPLICADO: PARA EL INTERESADO.</p>
+  </div>
+</div>

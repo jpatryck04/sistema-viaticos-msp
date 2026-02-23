@@ -1,0 +1,131 @@
+/* You can add global styles to this file, and also import other style files */
+@import 'ngx-toastr/toastr';
+@import 'ngx-bootstrap/datepicker/bs-datepicker.css';
+
+/* Variables globales */
+:root {
+  --msp-primary: #1F3C73;
+  --msp-primary-dark: #0a1a3a;
+  --msp-primary-light: #2e4f8a;
+  --msp-text: #333333;
+  --msp-border-radius: 4px;
+  --msp-box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Estilos globales */
+body {
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  color: var(--msp-text);
+  background-color: #f5f7fa;
+}
+
+/* Utilidades de color */
+.bg-msp {
+  background-color: var(--msp-primary) !important;
+}
+
+.text-msp {
+  color: var(--msp-primary) !important;
+}
+
+.border-msp {
+  border-color: var(--msp-primary) !important;
+}
+
+/* Botones personalizados */
+.btn-msp {
+  background-color: var(--msp-primary);
+  border-color: var(--msp-primary);
+  color: white;
+  
+  &:hover {
+    background-color: var(--msp-primary-dark);
+    border-color: var(--msp-primary-dark);
+    color: white;
+  }
+  
+  &:disabled {
+    background-color: #6c757d;
+    border-color: #6c757d;
+  }
+}
+
+.btn-outline-msp {
+  color: var(--msp-primary);
+  border-color: var(--msp-primary);
+  
+  &:hover {
+    background-color: var(--msp-primary);
+    color: white;
+  }
+}
+
+/* Tarjetas */
+.card {
+  border-radius: var(--msp-border-radius);
+  box-shadow: var(--msp-box-shadow);
+  border: none;
+  margin-bottom: 1.5rem;
+}
+
+.card-header {
+  background-color: white;
+  border-bottom: 2px solid var(--msp-primary);
+  font-weight: 600;
+  padding: 1rem 1.5rem;
+}
+
+/* Tablas */
+.table thead th {
+  background-color: var(--msp-primary);
+  color: white;
+  font-weight: 500;
+  border: none;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* Formularios */
+.form-control:focus, .form-select:focus {
+  border-color: var(--msp-primary-light);
+  box-shadow: 0 0 0 0.2rem rgba(31, 60, 115, 0.25);
+}
+
+/* Estilos de impresión */
+@media print {
+  app-header, app-footer, .btn, .card-header, 
+  .no-print, .navbar, footer, form .card:not(.print-card) {
+    display: none !important;
+  }
+  
+  @page {
+    size: letter;
+    margin: 0.75in 0.5in;
+  }
+  
+  body {
+    background-color: white;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .container-fluid {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  
+  /* Reset de estilos */
+  * {
+    background: transparent !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+}

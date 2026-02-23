@@ -1,0 +1,258 @@
+<div class="container-fluid">
+  <!-- SECCIÓN 1 Y 2: BÚSQUEDA DE EMPLEADO -->
+  <div class="card mb-4">
+    <div class="card-header" style="background-color: #1F3C73; color: white;">
+      <i class="bi bi-search me-2"></i>
+      Búsqueda de Empleado
+    </div>
+    <div class="card-body">
+      <form [formGroup]="busquedaForm" (ngSubmit)="buscarEmpleado()">
+        <div class="row align-items-end">
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Cédula</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+              <input type="text" 
+                     class="form-control" 
+                     formControlName="cedula"
+                     placeholder="000-0000000-0"
+                     [class.is-invalid]="busquedaForm.get('cedula')?.invalid && busquedaForm.get('cedula')?.touched">
+            </div>
+            <div class="invalid-feedback" *ngIf="busquedaForm.get('cedula')?.hasError('formatoCedulaInvalido')">
+              Formato de cédula inválido. Use: 000-0000000-0
+            </div>
+          </div>
+          <div class="col-md-2">
+            <button type="submit" 
+                    class="btn w-100" 
+                    style="background-color: #1F3C73; color: white;"
+                    [disabled]="buscando">
+              <i class="bi bi-search me-2"></i>
+              {{ buscando ? 'Buscando...' : 'Buscar' }}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <!-- Datos del empleado (visible cuando se encuentra) -->
+      <div *ngIf="empleado" class="mt-4 p-3" style="background-color: #f8f9fa; border-left: 4px solid #1F3C73;">
+        <div class="row">
+          <div class="col-md-3">
+            <small class="text-muted d-block">Cédula</small>
+            <strong>{{ empleado.cedula }}</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-muted d-block">Nombre</small>
+            <strong>{{ empleado.nombreCompleto }}</strong>
+          </div>
+          <div class="col-md-2">
+            <small class="text-muted d-block">Cargo</small>
+            <strong>{{ empleado.cargo }}</strong>
+          </div>
+          <div class="col-md-2">
+            <small class="text-muted d-block">Asignación Diaria</small>
+            <strong style="color: #1F3C73;">{{ formatearMoneda(empleado.asignacionDiaria) }}</strong>
+          </div>
+          <div class="col-md-2">
+            <small class="text-muted d-block">Departamento</small>
+            <strong>{{ empleado.departamento }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 3: SELECTOR DE MES (solo visible si hay empleado) -->
+  <div *ngIf="empleadoEncontrado" class="card mb-4">
+    <div class="card-header">
+      <i class="bi bi-calendar-month me-2"></i>
+      Período
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3">
+          <label class="form-label fw-bold">Mes de referencia</label>
+          <input type="month" 
+                 class="form-control"
+                 formControlName="mes"
+                 [min]="fechaMinima">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 4: REGISTRO DE VIAJES -->
+  <div *ngIf="empleadoEncontrado" class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-journal-text me-2"></i>Registro de Viajes</span>
+      <button type="button" class="btn btn-sm btn-outline-primary" (click)="agregarViaje()">
+        <i class="bi bi-plus-circle me-1"></i> Agregar otro viaje
+      </button>
+    </div>
+    <div class="card-body">
+      <div *ngFor="let viaje of viajesArray.controls; let i = index" class="viaje-card mb-4 p-3 border rounded" style="border-left: 3px solid #1F3C73;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="mb-0 fw-bold" style="color: #1F3C73;">
+            <i class="bi bi-truck me-2"></i>Viaje #{{ i + 1 }}
+          </h6>
+          <button *ngIf="viajesArray.length > 1" 
+                  type="button" 
+                  class="btn btn-sm btn-outline-danger" 
+                  (click)="eliminarViaje(i)">
+            <i class="bi bi-trash"></i> Eliminar
+          </button>
+        </div>
+
+        <div [formGroup]="viaje" class="row g-3">
+          <!-- Fecha y hora de salida -->
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Fecha de Salida</label>
+            <input type="date" class="form-control form-control-sm" formControlName="fechaSalida">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Hora de Salida</label>
+            <app-selector-hora formControlName="horaSalida"></app-selector-hora>
+          </div>
+
+          <!-- Fecha y hora de retorno -->
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Fecha de Retorno</label>
+            <input type="date" class="form-control form-control-sm" formControlName="fechaRetorno">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Hora de Retorno</label>
+            <app-selector-hora formControlName="horaRetorno"></app-selector-hora>
+          </div>
+
+          <!-- Destino y provincia turística -->
+          <div class="col-md-3">
+            <div class="form-check mt-4">
+              <input class="form-check-input" 
+                     type="checkbox" 
+                     formControlName="esTuristica"
+                     id="turistica{{i}}"
+                     (change)="filtrarDestinos(viaje.get('esTuristica')?.value)">
+              <label class="form-check-label small fw-bold" for="turistica{{i}}">
+                ¿Es provincia turística?
+              </label>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">Destino</label>
+            <select class="form-select form-select-sm" formControlName="idDestino">
+              <option value="">Seleccione un destino</option>
+              <option *ngFor="let destino of (viaje.get('esTuristica')?.value ? destinosFiltrados : destinos)" 
+                      [value]="destino.id">
+                {{ destino.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Documentos -->
+          <div class="col-md-5">
+            <label class="form-label small fw-bold">Documentos Adjuntos</label>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-primary" (click)="abrirModalDocumentos(i)">
+                <i class="bi bi-paperclip me-1"></i> 
+                {{ viaje.get('documentos')?.value?.length || 0 }} documento(s)
+              </button>
+              <span *ngIf="viaje.get('documentos')?.value?.length === 0" class="text-danger small align-self-center">
+                * Requerido
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mostrar errores de validación -->
+        <div *ngIf="viaje.errors?.['fechaRetornoMenor']" class="text-danger small mt-2">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          La fecha de retorno no puede ser menor a la fecha de salida
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 5: TABLA DE RESUMEN -->
+  <div *ngIf="resultadosCalculo.length > 0" class="card mb-4">
+    <div class="card-header">
+      <i class="bi bi-table me-2"></i>
+      Resumen de Viáticos Calculados
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover table-sm">
+          <thead class="text-center">
+            <tr>
+              <th>Día</th>
+              <th>Hora Salida</th>
+              <th>Hora Retorno</th>
+              <th>Destino</th>
+              <th>% Tur.</th>
+              <th>10%</th>
+              <th>25%</th>
+              <th>20%</th>
+              <th>45%</th>
+              <th>Total Dieta</th>
+              <th>Transporte</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of resultadosCalculo">
+              <td>{{ item.diaStr }}</td>
+              <td>{{ item.horaSalida }}</td>
+              <td>{{ item.horaRetorno }}</td>
+              <td>{{ item.destino }}</td>
+              <td class="text-center">{{ item.esTuristica ? '5%' : '-' }}</td>
+              <td class="text-end">{{ formatearMoneda(item.desayuno) }}</td>
+              <td class="text-end">{{ formatearMoneda(item.almuerzo) }}</td>
+              <td class="text-end">{{ formatearMoneda(item.cena) }}</td>
+              <td class="text-end">{{ formatearMoneda(item.alojamiento) }}</td>
+              <td class="text-end fw-bold">{{ formatearMoneda(item.totalDieta) }}</td>
+              <td class="text-end">{{ formatearMoneda(item.transporte) }}</td>
+              <td class="text-end fw-bold" style="color: #1F3C73;">{{ formatearMoneda(item.totalGastos) }}</td>
+            </tr>
+          </tbody>
+          <tfoot class="table-secondary fw-bold">
+            <tr>
+              <td colspan="9" class="text-end">TOTALES:</td>
+              <td class="text-end">{{ formatearMoneda(getTotalDieta()) }}</td>
+              <td class="text-end">{{ formatearMoneda(getTotalTransporte()) }}</td>
+              <td class="text-end" style="color: #1F3C73;">{{ formatearMoneda(getTotalGeneral()) }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 6: ACCIONES GENERALES -->
+  <div *ngIf="empleadoEncontrado" class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <small class="text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        Para imprimir, use CTRL + P
+      </small>
+    </div>
+    <div>
+      <button type="button" class="btn btn-outline-secondary me-2" (click)="nuevoRegistro()">
+        <i class="bi bi-file-earmark me-1"></i> Nuevo
+      </button>
+      <button type="button" 
+              class="btn" 
+              style="background-color: #1F3C73; color: white;"
+              (click)="guardarTodo()"
+              [disabled]="guardando || viajesArray.length === 0">
+        <i class="bi bi-save me-1"></i>
+        {{ guardando ? 'Guardando...' : 'Guardar todo' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de documentos -->
+<app-modal-documentos #modalDocumentos
+                      [viajeIndex]="viajeActualIndex + 1"
+                      (documentosSeleccionados)="onDocumentosSeleccionados($event)">
+</app-modal-documentos>
