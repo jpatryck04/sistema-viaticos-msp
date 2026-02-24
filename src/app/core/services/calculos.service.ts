@@ -135,6 +135,10 @@ export class CalculosService {
 
   /**
    * Calcula la dieta para un día específico
+   * ARTÍCULO SEXTO - Criterios de asignación de viáticos:
+   * - DESAYUNO: Se cubre cuando personal sale de 6:00 AM a 10:00 AM
+   * - ALMUERZO: Se cubre cuando sale >= 11:00 AM y regresa >= 1:00 PM
+   * - CENA: Se cubre cuando regresa >= 6:00 PM
    */
   private calcularDietaPorDia(
     asignacionDiaria: number,
@@ -149,32 +153,36 @@ export class CalculosService {
     let desayuno = 0, almuerzo = 0, cena = 0, alojamiento = 0;
     
     if (esDiaIntermedio) {
-      // Día completo
+      // Día completo: incluye todos los conceptos
       desayuno = asignacionDiaria * this.PORC_DESAYUNO;
       almuerzo = asignacionDiaria * this.PORC_ALMUERZO;
       cena = asignacionDiaria * this.PORC_CENA;
       alojamiento = asignacionDiaria * this.PORC_ALOJAMIENTO;
       
     } else {
+      // Día parcial: aplicar normas del ARTÍCULO SEXTO ESTRICTAMENTE
       const horaSalidaNum = this.convertirHoraANumero(horaSalida);
       const horaRetornoNum = this.convertirHoraANumero(horaRetorno);
       
-      // Desayuno (6:00 AM - 10:00 AM)
+      // DESAYUNO: Hora de salida entre 6:00 AM (6.0) y 10:00 AM (10.0)
+      // Esto significa: salida >= 6:00 AM Y salida <= 10:00 AM
       if (horaSalidaNum >= 6 && horaSalidaNum <= 10) {
         desayuno = asignacionDiaria * this.PORC_DESAYUNO;
       }
       
-      // Almuerzo (salida >= 11:00 AM y retorno >= 1:00 PM)
+      // ALMUERZO: Salida >= 11:00 AM (11.0) Y Retorno >= 1:00 PM (13.0)
+      // Ambas condiciones deben cumplirse simultáneamente
       if (horaSalidaNum >= 11 && horaRetornoNum >= 13) {
         almuerzo = asignacionDiaria * this.PORC_ALMUERZO;
       }
       
-      // Cena (retorno >= 6:00 PM)
+      // CENA: Retorno >= 6:00 PM (18.0)
       if (horaRetornoNum >= 18) {
         cena = asignacionDiaria * this.PORC_CENA;
       }
       
-      // Alojamiento (si retorna al día siguiente)
+      // ALOJAMIENTO: Se aplica si la fecha de retorno es diferente a la de salida
+      // (es decir, si retorna después de las 12:00 AM del día siguiente)
       if (fechaRetorno > fechaSalida) {
         alojamiento = asignacionDiaria * this.PORC_ALOJAMIENTO;
       }
@@ -204,6 +212,39 @@ export class CalculosService {
     if (modifier === 'AM' && hours === 12) hours = 0;
     
     return hours + (minutes / 60);
+  }
+
+  /**
+   * Valida si una comida aplica según las normas del ARTÍCULO SEXTO
+   * @param tipoComida 'desayuno' | 'almuerzo' | 'cena'
+   * @param horaSalida Hora de salida en formato "HH:mm AM/PM"
+   * @param horaRetorno Hora de retorno en formato "HH:mm AM/PM"  
+   * @returns true si la comida aplica, false en caso contrario
+   */
+  validarComidaSegunNormas(
+    tipoComida: 'desayuno' | 'almuerzo' | 'cena',
+    horaSalida: string,
+    horaRetorno: string
+  ): boolean {
+    const horaSalidaNum = this.convertirHoraANumero(horaSalida);
+    const horaRetornoNum = this.convertirHoraANumero(horaRetorno);
+    
+    switch (tipoComida) {
+      case 'desayuno':
+        // Se cubre cuando personal sale entre 6:00 AM y 10:00 AM
+        return horaSalidaNum >= 6 && horaSalidaNum <= 10;
+        
+      case 'almuerzo':
+        // Se cubre cuando sale >= 11:00 AM Y regresa >= 1:00 PM
+        return horaSalidaNum >= 11 && horaRetornoNum >= 13;
+        
+      case 'cena':
+        // Se cubre cuando regresa >= 6:00 PM
+        return horaRetornoNum >= 18;
+        
+      default:
+        return false;
+    }
   }
 
   /**

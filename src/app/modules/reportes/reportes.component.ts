@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 import * as XLSX from 'xlsx';
@@ -28,43 +28,8 @@ interface ReporteItem {
 export class ReportesComponent implements OnInit {
   filtrosForm: FormGroup;
   
-  // Datos de ejemplo - en producción vendrían del API
-  datosReporte: ReporteItem[] = [
-    {
-      id: 1,
-      fecha: '15/01/2026',
-      empleado: 'JUAN PEREZ GARCIA',
-      cedula: '001-1234567-8',
-      destino: 'Santiago',
-      totalDieta: 3280.00,
-      transporte: 800.00,
-      totalGeneral: 4080.00,
-      estado: 'Pagado'
-    },
-    {
-      id: 2,
-      fecha: '16/01/2026',
-      empleado: 'MARIA RODRIGUEZ',
-      cedula: '002-7654321-0',
-      destino: 'La Altagracia',
-      totalDieta: 4515.00,
-      transporte: 1200.00,
-      totalGeneral: 5715.00,
-      estado: 'Pendiente'
-    },
-    {
-      id: 3,
-      fecha: '17/01/2026',
-      empleado: 'PEDRO SANCHEZ',
-      cedula: '003-9876543-2',
-      destino: 'Puerto Plata',
-      totalDieta: 4100.00,
-      transporte: 950.00,
-      totalGeneral: 5050.00,
-      estado: 'Procesado'
-    }
-  ];
-  
+  // Array inicialmente vacío - los datos se cargan desde el API
+  datosReporte: ReporteItem[] = [];
   datosFiltrados: ReporteItem[] = [];
   cargando = false;
   exportando = false;
@@ -72,7 +37,8 @@ export class ReportesComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private apiService: ApiService,
-    private toastr: ToastrService
+    private toastr: ToastrService,
+    private cdr: ChangeDetectorRef
   ) {
     this.filtrosForm = this.fb.group({
       fechaInicio: ['', Validators.required],
@@ -84,28 +50,64 @@ export class ReportesComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.datosFiltrados = [...this.datosReporte];
+    this.cargarReportes();
+  }
+
+  cargarReportes(): void {
+    this.cargando = true;
+    
+    this.apiService.getReportes().subscribe({
+      next: (datos) => {
+        this.datosReporte = datos;
+        this.datosFiltrados = [...this.datosReporte];
+        this.cargando = false;
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        console.error('Error al cargar reportes:', error);
+        this.toastr.error('Error al cargar los reportes', 'Error');
+        this.cargando = false;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   aplicarFiltros(): void {
-    // En producción, esto llamaría al API
+    if (this.filtrosForm.invalid) {
+      this.toastr.warning('Complete los campos requeridos (Fecha Inicio y Fecha Fin)', 'Validación');
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.cargando = true;
-    
-    setTimeout(() => {
-      // Simular filtrado
-      this.datosFiltrados = this.datosReporte.filter(item => {
-        // Aquí iría la lógica real de filtrado
-        return true;
-      });
-      
-      this.cargando = false;
-      this.toastr.success('Reporte generado correctamente');
-    }, 1000);
+
+    const filtros = {
+      fechaInicio: this.filtrosForm.get('fechaInicio')?.value,
+      fechaFin: this.filtrosForm.get('fechaFin')?.value,
+      cedula: this.filtrosForm.get('cedula')?.value || undefined,
+      departamento: this.filtrosForm.get('departamento')?.value || undefined,
+      estado: this.filtrosForm.get('estado')?.value || undefined
+    };
+
+    this.apiService.getReportes(filtros).subscribe({
+      next: (datos) => {
+        this.datosFiltrados = datos;
+        this.cargando = false;
+        this.toastr.success(`${datos.length} registros encontrados`, 'Búsqueda completada');
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        console.error('Error al aplicar filtros:', error);
+        this.toastr.error('Error al generar el reporte', 'Error');
+        this.cargando = false;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   limpiarFiltros(): void {
     this.filtrosForm.reset();
-    this.datosFiltrados = [...this.datosReporte];
+    this.cargarReportes();
   }
 
   // ============================================
