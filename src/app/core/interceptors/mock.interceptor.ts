@@ -9,6 +9,17 @@ import {
 import { Observable, of, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
 
+/**
+ * DEPRECATED: Este interceptor NO se está usando actualmente
+ * 
+ * IMPORTANTE: En producción, TODOS los datos deben venir del API remoto en localhost:3000
+ * NO usar datos hardcodeados. Si necesitas datos para desarrollo local, configura
+ * tu propio servidor mock en puerto 3000 y asegúrate de que esté corriendo.
+ * 
+ * Ver: src/environments/environment.ts para la configuración del API
+ * 
+ * @deprecated - No registrado en ningún módulo. Mantener solo como referencia histórica.
+ */
 @Injectable()
 export class MockInterceptor implements HttpInterceptor {
   

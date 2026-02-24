@@ -16,7 +16,8 @@
                      class="form-control" 
                      formControlName="cedula"
                      placeholder="000-0000000-0"
-                     [class.is-invalid]="busquedaForm.get('cedula')?.invalid && busquedaForm.get('cedula')?.touched">
+                     [class.is-invalid]="busquedaForm.get('cedula')?.invalid && busquedaForm.get('cedula')?.touched"
+                     (keyup.enter)="buscarEmpleado()">
             </div>
             <div class="invalid-feedback" *ngIf="busquedaForm.get('cedula')?.hasError('formatoCedulaInvalido')">
               Formato de cédula inválido. Use: 000-0000000-0

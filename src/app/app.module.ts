@@ -46,7 +46,11 @@ import { ToastrModule } from 'ngx-toastr';
       progressBar: true
     })
   ],
-  providers: [],
+  providers: [
+    // IMPORTANTE: No se registra ningún MockInterceptor
+    // Todos los datos DEBEN venir del API en localhost:3000
+    // Ver environment.ts para la URL del API
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

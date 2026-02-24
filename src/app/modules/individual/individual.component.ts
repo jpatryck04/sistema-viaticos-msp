@@ -1,5 +1,5 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Component, OnInit, ViewChild, ChangeDetectorRef } from '@angular/core';
+import { AbstractControl, FormArray, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 import { BsDatepickerConfig } from 'ngx-bootstrap/datepicker';
 
@@ -53,7 +53,8 @@ export class IndividualComponent implements OnInit {
     private calculosService: CalculosService,
     private validacionesService: ValidacionesService,
     private documentosService: DocumentosService,
-    private toastr: ToastrService
+    private toastr: ToastrService,
+    private cdr: ChangeDetectorRef
   ) {
     // Formulario de búsqueda
     this.busquedaForm = this.fb.group({
@@ -96,12 +97,16 @@ export class IndividualComponent implements OnInit {
         
         // Inicializar con un viaje
         this.agregarViaje();
+        
+        // Notificar a Angular que la vista debe actualizarse
+        this.cdr.markForCheck();
       },
       error: (error) => {
         console.error('Error al buscar empleado:', error);
         this.toastr.error('La cédula ingresada no existe en el sistema', 'Error');
         this.empleado = null;
         this.empleadoEncontrado = false;
+        this.cdr.markForCheck();
       },
       complete: () => {
         this.buscando = false;
@@ -117,10 +122,12 @@ export class IndividualComponent implements OnInit {
       next: (destinos) => {
         this.destinos = destinos;
         this.filtrarDestinos(false);
+        this.cdr.markForCheck();
       },
       error: (error) => {
         console.error('Error al cargar destinos:', error);
         this.toastr.error('Error al cargar la lista de destinos', 'Error');
+        this.cdr.markForCheck();
       }
     });
   }
@@ -139,7 +146,7 @@ export class IndividualComponent implements OnInit {
   // GESTIÓN DE VIAJES (FORM ARRAY)
   // ============================================
   crearViajeFormGroup(): FormGroup {
-    const fechaHoy = new Date();
+    const fechaHoy = new Date().toISOString().split('T')[0];
     
     return this.fb.group({
       fechaSalida: [fechaHoy, [Validators.required]],
@@ -148,16 +155,35 @@ export class IndividualComponent implements OnInit {
       horaRetorno: ['05:00 PM', [Validators.required, Validators.pattern(/^(0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/)]],
       esTuristica: [false],
       idDestino: ['', [Validators.required]],
-      documentos: [[]],
+      documentos: [[], [this.validarDocumentosRequeridos.bind(this)]],
       transporte: [0]
     }, {
-      validators: [
-        this.validacionesService.validadorFechas(
-          this.fb.control(fechaHoy),
-          this.fb.control(fechaHoy)
-        )
-      ]
-    });
+      validators: (formGroup: AbstractControl) => {
+        const salida = formGroup.get('fechaSalida')?.value;
+        const retorno = formGroup.get('fechaRetorno')?.value;
+        
+        if (!salida || !retorno) {
+          return null;
+        }
+        
+        const fechaSalida = new Date(salida);
+        const fechaRetorno = new Date(retorno);
+        
+        if (fechaRetorno < fechaSalida) {
+          return { fechaRetornoMenor: true };
+        }
+        
+        return null;
+      }
+    })
+  }
+
+  validarDocumentosRequeridos(control: AbstractControl): ValidationErrors | null {
+    const documentos = control.value as any[];
+    if (!documentos || documentos.length === 0) {
+      return { documentosRequeridos: true };
+    }
+    return null;
   }
 
   agregarViaje(): void {
@@ -261,20 +287,21 @@ export class IndividualComponent implements OnInit {
       return;
     }
 
-    if (this.viajesForm.invalid) {
-      this.toastr.warning('Complete todos los campos requeridos correctamente', 'Validación');
-      return;
-    }
-
-    // Validar que cada viaje tenga al menos un documento
+    // Validar que cada viaje tenga documentos adjuntos
     for (let i = 0; i < this.viajesArray.length; i++) {
       const viajeForm = this.viajesArray.at(i);
       const documentos = viajeForm.get('documentos')?.value;
       
       if (!documentos || documentos.length === 0) {
-        this.toastr.warning(`El viaje #${i + 1} debe tener al menos un documento adjunto`, 'Validación');
+        this.toastr.warning(`El viaje #${i + 1} debe tener al menos un documento adjunto`, 'Documentos requeridos');
         return;
       }
+    }
+
+    // Luego validar que todos los campos requeridos estén completos
+    if (this.viajesForm.invalid) {
+      this.toastr.warning('Complete todos los campos requeridos correctamente (fechas, horas, destino)', 'Validación');
+      return;
     }
 
     this.guardando = true;
@@ -304,13 +331,16 @@ export class IndividualComponent implements OnInit {
       next: (response) => {
         this.toastr.success(response.mensaje, 'Guardado exitoso');
         this.nuevoRegistro(); // Limpiar después de guardar
+        this.cdr.markForCheck();
       },
       error: (error) => {
         console.error('Error al guardar:', error);
         this.toastr.error('Error al guardar los datos. Intente nuevamente.', 'Error');
+        this.cdr.markForCheck();
       },
       complete: () => {
         this.guardando = false;
+        this.cdr.markForCheck();
       }
     });
   }

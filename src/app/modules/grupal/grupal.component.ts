@@ -1,5 +1,5 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Component, OnInit, ViewChild, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
+import { AbstractControl, FormArray, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 import { BsDatepickerConfig } from 'ngx-bootstrap/datepicker';
 import * as XLSX from 'xlsx';
@@ -52,7 +52,8 @@ export class GrupalComponent implements OnInit {
     private calculosService: CalculosService,
     private validacionesService: ValidacionesService,
     private documentosService: DocumentosService,
-    private toastr: ToastrService
+    private toastr: ToastrService,
+    private cdr: ChangeDetectorRef
   ) {
     // Formulario de filtros
     this.filtrosForm = this.fb.group({
@@ -83,10 +84,12 @@ export class GrupalComponent implements OnInit {
     this.apiService.getDestinos().subscribe({
       next: (destinos) => {
         this.destinos = destinos;
+        this.cdr.markForCheck();
       },
       error: (error) => {
         console.error('Error al cargar destinos:', error);
         this.toastr.error('Error al cargar la lista de destinos', 'Error');
+        this.cdr.markForCheck();
       }
     });
   }
@@ -95,7 +98,7 @@ export class GrupalComponent implements OnInit {
   // GESTIÓN DE FILAS DINÁMICAS
   // ============================================
   crearFilaFormGroup(): FormGroup {
-    const fechaHoy = new Date();
+    const fechaHoy = new Date().toISOString().split('T')[0];
     
     const fila = this.fb.group({
       id: [crypto.randomUUID()], // Identificador único para la fila
@@ -112,17 +115,28 @@ export class GrupalComponent implements OnInit {
       nombreDestino: [''],
       transporte: [0],
       totalCalculado: [0],
-      documentos: [[]],
+      documentos: [[], [this.validarDocumentosRequeridos.bind(this)]],
       empleadoValido: [false],
       fechaValida: [true]
     }, {
-      validators: [
-        this.validacionesService.validadorFechas(
-          this.fb.control(fechaHoy),
-          this.fb.control(fechaHoy)
-        )
-      ]
-    });
+      validators: (control: AbstractControl) => {
+        const salida = control.get('fechaSalida')?.value;
+        const retorno = control.get('fechaRetorno')?.value;
+        
+        if (!salida || !retorno) {
+          return null;
+        }
+        
+        const fechaSalida = new Date(salida);
+        const fechaRetorno = new Date(retorno);
+        
+        if (fechaRetorno < fechaSalida) {
+          return { fechaRetornoMenor: true };
+        }
+        
+        return null;
+      }
+    })
 
     // Suscribirse a cambios en cédula
     fila.get('cedula')?.valueChanges.subscribe(cedula => {
@@ -142,6 +156,14 @@ export class GrupalComponent implements OnInit {
   agregarFila(): void {
     const nuevaFila = this.crearFilaFormGroup();
     this.viajesArray.push(nuevaFila);
+  }
+
+  validarDocumentosRequeridos(control: AbstractControl): ValidationErrors | null {
+    const documentos = control.value as any[];
+    if (!documentos || documentos.length === 0) {
+      return { documentosRequeridos: true };
+    }
+    return null;
   }
 
   eliminarFila(index: number): void {
@@ -165,19 +187,24 @@ export class GrupalComponent implements OnInit {
   // ============================================
   onCedulaChange(fila: FormGroup, cedula: string): void {
     if (!cedula || cedula.length < 13) { // Formato completo: 000-0000000-0 = 13 caracteres
+      fila.patchValue({ empleadoValido: false }, { emitEvent: false });
+      this.cdr.markForCheck();
       return;
     }
 
     // Validar formato
-    if (!this.validacionesService.validadorCedula()({ value: cedula } as any)) {
-      fila.patchValue({ empleadoValido: false });
+    const validadorResult = this.validacionesService.validadorCedula()({ value: cedula } as any);
+    if (validadorResult !== null) {
+      fila.patchValue({ empleadoValido: false }, { emitEvent: false });
+      this.cdr.markForCheck();
       return;
     }
 
     // Verificar si la cédula ya está en uso en otra fila
     if (this.cedulasEnUso.has(cedula)) {
       this.toastr.warning('Este empleado ya está registrado en otra fila', 'Cédula duplicada');
-      fila.patchValue({ empleadoValido: false });
+      fila.patchValue({ empleadoValido: false }, { emitEvent: false });
+      this.cdr.markForCheck();
       return;
     }
 
@@ -199,7 +226,8 @@ export class GrupalComponent implements OnInit {
           cargo: '',
           asignacionDiaria: 0,
           empleadoValido: false
-        });
+        }, { emitEvent: false });
+        this.cdr.markForCheck();
         this.toastr.error('La cédula ingresada no existe', 'Error');
       }
     });
@@ -218,7 +246,10 @@ export class GrupalComponent implements OnInit {
       cargo: empleado.cargo,
       asignacionDiaria: empleado.asignacionDiaria,
       empleadoValido: true
-    });
+    }, { emitEvent: false });
+    
+    // Notificar a Angular que la vista debe ser verificada
+    this.cdr.markForCheck();
   }
 
   // ============================================
@@ -256,6 +287,7 @@ export class GrupalComponent implements OnInit {
 
     const total = resultados.reduce((sum, item) => sum + item.totalGastos, 0);
     fila.patchValue({ totalCalculado: total }, { emitEvent: false });
+    this.cdr.markForCheck();
   }
 
   // ============================================
@@ -351,13 +383,16 @@ export class GrupalComponent implements OnInit {
       next: (response) => {
         this.toastr.success(response.mensaje, 'Guardado exitoso');
         this.limpiarFormulario();
+        this.cdr.markForCheck();
       },
       error: (error) => {
         console.error('Error al guardar:', error);
         this.toastr.error('Error al guardar los datos. Intente nuevamente.', 'Error');
+        this.cdr.markForCheck();
       },
       complete: () => {
         this.guardando = false;
+        this.cdr.markForCheck();
       }
     });
   }
@@ -465,9 +500,25 @@ export class GrupalComponent implements OnInit {
 
   onKeyUp(event: KeyboardEvent, index: number): void {
     const target = event.target as HTMLInputElement;
+    const cedula = target.value;
+    
+    // Si presionó TAB, intentar cargar empleado
+    if (event.key === 'Tab' && cedula && cedula.length >= 13) {
+      event.preventDefault();
+      const fila = this.viajesArray.at(index) as FormGroup;
+      this.onCedulaChange(fila, cedula);
+      
+      // Mover al siguiente campo después de que se cargue el empleado
+      setTimeout(() => {
+        const nextInput = (event.target as HTMLElement).parentElement?.nextElementSibling?.querySelector('input');
+        if (nextInput) {
+          (nextInput as HTMLInputElement).focus();
+        }
+      }, 200);
+    }
     
     // Si es la última fila y se está escribiendo, agregar nueva fila
-    if (index === this.viajesArray.length - 1 && target.value.length > 0) {
+    if (index === this.viajesArray.length - 1 && cedula.length > 0) {
       this.agregarFila();
     }
   }

@@ -57,4 +57,27 @@ export class ApiService {
   subirDocumento(formData: FormData): Observable<any> {
     return this.http.post(`${this.apiUrl}/documentos/upload`, formData);
   }
+
+  // ============================================
+  // REPORTES
+  // ============================================
+  getReportes(filtros?: {
+    fechaInicio?: string;
+    fechaFin?: string;
+    cedula?: string;
+    departamento?: string;
+    estado?: string;
+  }): Observable<any[]> {
+    let params = new HttpParams();
+    
+    if (filtros) {
+      if (filtros.fechaInicio) params = params.set('fechaInicio', filtros.fechaInicio);
+      if (filtros.fechaFin) params = params.set('fechaFin', filtros.fechaFin);
+      if (filtros.cedula) params = params.set('cedula', filtros.cedula);
+      if (filtros.departamento) params = params.set('departamento', filtros.departamento);
+      if (filtros.estado) params = params.set('estado', filtros.estado);
+    }
+    
+    return this.http.get<any[]>(`${this.apiUrl}/reportes`, { params });
+  }
 }
