@@ -163,6 +163,48 @@
               </span>
             </div>
           </div>
+
+          <!-- Transporte: ¿Es chofer? -->
+          <div class="col-md-3 mt-4">
+            <div class="form-check">
+              <input class="form-check-input" 
+                     type="checkbox" 
+                     formControlName="esChofer"
+                     id="esChofer{{i}}">
+              <label class="form-check-label fw-bold" for="esChofer{{i}}">
+                <i class="bi bi-person-badge me-1"></i> ¿utilizas transporte?
+              </label>
+            </div>
+          </div>
+
+          <!-- Costo de transporte (manual) - solo si es chofer -->
+          <div *ngIf="viaje.get('esChofer')?.value" class="col-md-2">
+            <label class="form-label small fw-bold">Costo Transporte (RD$)</label>
+            <input type="number" 
+                   class="form-control form-control-sm" 
+                   formControlName="costoTransporte"
+                   placeholder="0.00"
+                   min="0"
+                   step="0.01">
+          </div>
+
+          <!-- Comprobantes de transporte (se muestra si es chofer) -->
+          <div *ngIf="viaje.get('esChofer')?.value" class="col-md-12 mt-3 p-3" style="background-color: #f0f8ff; border: 1px solid #cde4ff; border-radius: 4px;">
+            <label class="form-label small fw-bold mb-2">
+              <i class="bi bi-receipt me-1" style="color: #1F3C73;"></i> Comprobantes de Transporte
+              <small class="text-muted">(Recibos, fotos de peajes, etc.)</small>
+            </label>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-success" (click)="abrirModalComprobantes(i)">
+                <i class="bi bi-file-earmark-pdf me-1"></i> 
+                {{ viaje.get('comprobantesTransporte')?.value?.length || 0 }} comprobante(s)
+              </button>
+              <span *ngIf="viaje.get('comprobantesTransporte')?.invalid && viaje.get('esChofer')?.value" 
+                    class="text-danger small align-self-center">
+                * Requerido cuando es chofer
+              </span>
+            </div>
+          </div>
         </div>
 
         <!-- Mostrar errores de validación -->
@@ -255,5 +297,6 @@
 <!-- Modal de documentos -->
 <app-modal-documentos #modalDocumentos
                       [viajeIndex]="viajeActualIndex + 1"
-                      (documentosSeleccionados)="onDocumentosSeleccionados($event)">
+                      (documentosSeleccionados)="onDocumentosSeleccionados($event)"
+                      (comprobantesSeleccionados)="onComprobantesSeleccionados($event)">
 </app-modal-documentos>

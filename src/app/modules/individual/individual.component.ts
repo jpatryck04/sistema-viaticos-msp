@@ -72,6 +72,15 @@ export class IndividualComponent implements OnInit {
     this.cargarDestinos();
   }
 
+  /**
+   * Parsea una fecha en formato ISO (YYYY-MM-DD) como fecha local,
+   * evitando problemas de zona horaria UTC
+   */
+  private parseDateLocal(dateString: string): Date {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
   // Getters
   get viajesArray(): FormArray {
     return this.viajesForm.get('viajes') as FormArray;
@@ -148,7 +157,7 @@ export class IndividualComponent implements OnInit {
   crearViajeFormGroup(): FormGroup {
     const fechaHoy = new Date().toISOString().split('T')[0];
     
-    return this.fb.group({
+    const viajeGroup = this.fb.group({
       fechaSalida: [fechaHoy, [Validators.required]],
       horaSalida: ['08:00 AM', [Validators.required, Validators.pattern(/^(0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/)]],
       fechaRetorno: [fechaHoy, [Validators.required]],
@@ -156,7 +165,10 @@ export class IndividualComponent implements OnInit {
       esTuristica: [false],
       idDestino: ['', [Validators.required]],
       documentos: [[], [this.validarDocumentosRequeridos.bind(this)]],
-      transporte: [0]
+      // Transporte
+      esChofer: [false],
+      costoTransporte: [0, [Validators.required, Validators.min(0)]],
+      comprobantesTransporte: [[], [this.validarComprobantesTransporte.bind(this)]]
     }, {
       validators: (formGroup: AbstractControl) => {
         const salida = formGroup.get('fechaSalida')?.value;
@@ -166,8 +178,8 @@ export class IndividualComponent implements OnInit {
           return null;
         }
         
-        const fechaSalida = new Date(salida);
-        const fechaRetorno = new Date(retorno);
+        const fechaSalida = this.parseDateLocal(salida);
+        const fechaRetorno = this.parseDateLocal(retorno);
         
         if (fechaRetorno < fechaSalida) {
           return { fechaRetornoMenor: true };
@@ -175,13 +187,45 @@ export class IndividualComponent implements OnInit {
         
         return null;
       }
-    })
+    });
+
+    // Validación condicional: si es chofer, requiere comprobantes
+    viajeGroup.get('esChofer')?.valueChanges.subscribe((esChofer) => {
+      const comprobantesControl = viajeGroup.get('comprobantesTransporte');
+      const costoControl = viajeGroup.get('costoTransporte');
+      
+      if (esChofer) {
+        // Si es chofer: requiere comprobantes
+        comprobantesControl?.setValidators([this.validarComprobantesTransporte.bind(this)]);
+        costoControl?.setValidators([Validators.required, Validators.min(0)]);
+      } else {
+        // Si NO es chofer: limpiar valores y no requiere validación
+        costoControl?.setValue(0);
+        comprobantesControl?.setValue([] as any);
+        comprobantesControl?.setValidators([]);
+        costoControl?.setValidators([]);
+      }
+      
+      comprobantesControl?.updateValueAndValidity({ emitEvent: false });
+      costoControl?.updateValueAndValidity({ emitEvent: false });
+    });
+
+    return viajeGroup;
   }
 
   validarDocumentosRequeridos(control: AbstractControl): ValidationErrors | null {
     const documentos = control.value as any[];
     if (!documentos || documentos.length === 0) {
       return { documentosRequeridos: true };
+    }
+    return null;
+  }
+
+  validarComprobantesTransporte(control: AbstractControl): ValidationErrors | null {
+    // Este validador solo es llamado si esChofer es true
+    const comprobantes = control.value as any[];
+    if (!comprobantes || comprobantes.length === 0) {
+      return { comprobantesTransporteRequeridos: true };
     }
     return null;
   }
@@ -230,6 +274,25 @@ export class IndividualComponent implements OnInit {
   }
 
   // ============================================
+  // MANEJO DE COMPROBANTES DE TRANSPORTE
+  // ============================================
+  abrirModalComprobantes(index: number): void {
+    this.viajeActualIndex = index;
+    const viajeForm = this.viajesArray.at(index);
+    const comprobantesActuales = viajeForm.get('comprobantesTransporte')?.value || [];
+    this.modalDocumentos.abrirModal(comprobantesActuales, 'comprobantes');
+  }
+
+  onComprobantesSeleccionados(comprobantes: Documento[]): void {
+    const viajeForm = this.viajesArray.at(this.viajeActualIndex);
+    viajeForm.patchValue({ comprobantesTransporte: comprobantes });
+    
+    if (comprobantes.length > 0) {
+      this.toastr.success(`${comprobantes.length} comprobante(s) de transporte adjuntado(s)`, 'Éxito');
+    }
+  }
+
+  // ============================================
   // CÁLCULOS
   // ============================================
   calcularTodosLosViajes(): void {
@@ -249,9 +312,9 @@ export class IndividualComponent implements OnInit {
       if (destino && viaje.fechaSalida && viaje.fechaRetorno) {
         const resultados = this.calculosService.calcularViaticosPorViaje(
           this.empleado!.asignacionDiaria,
-          new Date(viaje.fechaSalida),
+          viaje.fechaSalida,
           viaje.horaSalida,
-          new Date(viaje.fechaRetorno),
+          viaje.fechaRetorno,
           viaje.horaRetorno,
           destino.nombre,
           viaje.esTuristica,
@@ -309,17 +372,25 @@ export class IndividualComponent implements OnInit {
     // Construir el payload para el backend
     const viajesPayload: Partial<Viaje>[] = this.viajesArray.controls.map(viajeForm => {
       const viaje = viajeForm.value;
+      const fechaViaje = this.parseDateLocal(viaje.fechaSalida);
       return {
         cedula: this.empleado!.cedula,
-        mes: new Date(viaje.fechaSalida).getMonth() + 1,
-        anio: new Date(viaje.fechaSalida).getFullYear(),
+        mes: fechaViaje.getMonth() + 1,
+        anio: fechaViaje.getFullYear(),
         fechaSalida: viaje.fechaSalida,
         horaSalida: viaje.horaSalida,
         fechaRetorno: viaje.fechaRetorno,
         horaRetorno: viaje.horaRetorno,
         idDestino: Number(viaje.idDestino),
         esTuristica: viaje.esTuristica,
+        esChofer: viaje.esChofer,
+        costoTransporte: viaje.costoTransporte,
         documentos: viaje.documentos.map((doc: Documento) => ({
+          nombre: doc.nombre,
+          tipo: doc.tipo,
+          tamano: doc.tamano
+        })),
+        comprobantesTransporte: viaje.comprobantesTransporte.map((doc: Documento) => ({
           nombre: doc.nombre,
           tipo: doc.tipo,
           tamano: doc.tamano

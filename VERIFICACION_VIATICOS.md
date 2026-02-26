@@ -29,16 +29,18 @@ if (horaSalidaNum >= 6 && horaSalidaNum <= 10) {
 - 5.9 >= 6 && 5.9 <= 10 → NO ✓
 
 ### ALMUERZO ✅
-**Condición:** Salida >= 11:00 AM Y Retorno >= 1:00 PM (ambas deben cumplirse)
+**Condición:** Personal debe estar en viaje DURANTE la hora de almuerzo (11 AM - 1 PM)
+- Salida ANTES de 1:00 PM (13.0) Y Retorno DESPUÉS de 11:00 AM (11.0)
 ```typescript
-if (horaSalidaNum >= 11 && horaRetornoNum >= 13) {
+if (horaSalidaNum < 13 && horaRetornoNum > 11) {
   almuerzo = asignacionDiaria * this.PORC_ALMUERZO;  // 25%
 }
 ```
 **CORRECTO:** ✅
-- Salida 11:00 (11.0), Retorno 1:00 PM (13.0) → 11.0 >= 11 && 13.0 >= 13 → SÍ ✓
-- Salida 8:00 (8.0), Retorno 2:00 PM (14.0) → 8.0 >= 11? NO → NO APLICA ✓
-- Salida 12:00 (12.0), Retorno 12:30 PM (12.5) → 12.0 >= 11 && 12.5 >= 13? NO → NO APLICA ✓
+- Salida 5:00 AM (5.0), Retorno 6:00 PM (18.0) → 5.0 < 13 && 18.0 > 11 → SÍ ✓
+- Salida 10:00 AM (10.0), Retorno 2:00 PM (14.0) → 10.0 < 13 && 14.0 > 11 → SÍ ✓
+- Salida 2:00 PM (14.0), Retorno 5:00 PM (17.0) → 14.0 < 13? NO → NO APLICA ✓
+- Salida 9:00 AM (9.0), Retorno 10:30 AM (10.5) → 9.0 < 13 && 10.5 > 11? NO → NO APLICA ✓
 
 ### CENA ✅
 **Condición:** Retorno >= 6:00 PM
@@ -77,10 +79,10 @@ if (fechaRetorno > fechaSalida) {
 
 **Cálculo:**
 - DESAYUNO: 6.333 >= 6 && 6.333 <= 10? ✅ → 4100 * 0.10 = **410.00**
-- ALMUERZO: 6.333 >= 11? ❌ → **0.00**
+- ALMUERZO: 6.333 < 13 && 17.667 > 11? ✅ → 4100 * 0.25 = **1,025.00**
 - CENA: 17.667 >= 18? ❌ → **0.00**
 - ALOJAMIENTO: 2026-01-15 > 2026-01-15? ❌ → **0.00**
-- **TOTAL: 410.00 RD$ + 800.00 (transporte) = 1,210.00 RD$**
+- **TOTAL: (410.00 + 1,025.00) + 800.00 (transporte) = 2,235.00 RD$**
 
 ✅ Resultado correcto
 
@@ -94,11 +96,11 @@ if (fechaRetorno > fechaSalida) {
 
 **Día 1 (2026-01-16, 08:00 AM - 11:59 PM):**
 - DESAYUNO: 8.0 >= 6 && 8.0 <= 10? ✅ → 3850 * 0.10 = 385
-- ALMUERZO: 8.0 >= 11? ❌ → 0
+- ALMUERZO: 8.0 < 13 && 23.9833 > 11? ✅ → 3850 * 0.25 = 962.50
 - CENA: 23.9833 >= 18? ✅ → 3850 * 0.20 = 770
 - ALOJAMIENTO: 2026-01-18 > 2026-01-16? ✅ → 3850 * 0.45 = 1,732.50
-- Subtotal: 385 + 0 + 770 + 1,732.50 = **2,887.50**
-- Con turística: 2,887.50 * 1.05 = **3,031.875**
+- Subtotal: 385 + 962.50 + 770 + 1,732.50 = **3,850.00**
+- Con turística: 3,850.00 * 1.05 = **4,042.50**
 
 **Día 2 (2026-01-17, 12:00 AM - 11:59 PM) - DÍA COMPLETO:**
 - DESAYUNO: 3850 * 0.10 = 385
@@ -109,17 +111,17 @@ if (fechaRetorno > fechaSalida) {
 - Con turística: 3,850 * 1.05 = **4,042.50**
 
 **Día 3 (2026-01-18, 12:00 AM - 02:00 PM):**
-- DESAYUNO: 0.0 >= 6? ❌ → 0
-- ALMUERZO: 0.0 >= 11? ❌ → 0
+- DESAYUNO: 0 < 6? ❌ → 0
+- ALMUERZO: 0 < 13 && 14.0 > 11? ✅ → 3850 * 0.25 = 962.50
 - CENA: 14.0 >= 18? ❌ → 0
 - ALOJAMIENTO: 2026-01-18 > 2026-01-16? ✅ → 3850 * 0.45 = 1,732.50
-- Subtotal: 1,732.50
-- Con turística: 1,732.50 * 1.05 = **1,819.125**
+- Subtotal: 962.50 + 1,732.50 = **2,695.00**
+- Con turística: 2,695.00 * 1.05 = **2,829.75**
 
 **TOTAL VIAJE:**
-- Total dieta: 3,031.875 + 4,042.50 + 1,819.125 = **8,893.50 RD$**
+- Total dieta: 4,042.50 + 4,042.50 + 2,829.75 = **10,914.75 RD$**
 - Transporte: **1,200.00 RD$** (solo primer día)
-- **TOTAL GENERAL: 10,093.50 RD$**
+- **TOTAL GENERAL: 12,114.75 RD$**
 
 ✅ Cálculo consistente
 
@@ -133,13 +135,13 @@ if (fechaRetorno > fechaSalida) {
 
 **Cálculo:**
 - DESAYUNO: 7.5 >= 6 && 7.5 <= 10? ✅ → 3620 * 0.10 = 362
-- ALMUERZO: 7.5 >= 11? ❌ → 0
+- ALMUERZO: 7.5 < 13 && 18.5 > 11? ✅ → 3620 * 0.25 = 905
 - CENA: 18.5 >= 18? ✅ → 3620 * 0.20 = 724
 - ALOJAMIENTO: 2026-01-20 > 2026-01-20? ❌ → 0
-- Subtotal: 362 + 0 + 724 + 0 = 1,086
-- Con turística: 1,086 * 1.05 = **1,140.30 RD$**
+- Subtotal: 362 + 905 + 724 + 0 = 1,991
+- Con turística: 1,991 * 1.05 = **2,090.55 RD$**
 - Transporte: **1,150.00 RD$**
-- **TOTAL: 2,290.30 RD$**
+- **TOTAL: 3,240.55 RD$**
 
 ✅ Cálculo correcto
 
