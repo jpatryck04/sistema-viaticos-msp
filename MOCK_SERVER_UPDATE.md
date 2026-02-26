@@ -7,6 +7,14 @@ Para que tu aplicación Angular funcione completamente, agrega esta ruta al `ser
 Agrega esta ruta ANTES de la línea `server.use('/api', router);`:
 
 ```javascript
+// Función auxiliar para parsear fechas en formato ISO (YYYY-MM-DD) como zona horaria local
+// Evita problemas de zona horaria UTC que restan un día
+const parseDateLocal = (dateString) => {
+  if (!dateString || dateString instanceof Date) return dateString;
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 // Ruta de reportes - Genera reportes desde los viáticos guardados
 server.get('/api/reportes', (req, res) => {
   const { fechaInicio, fechaFin, cedula, departamento, estado } = req.query;
@@ -21,8 +29,8 @@ server.get('/api/reportes', (req, res) => {
     const destino = destinos.find(d => d.id === viatico.idDestino);
     
     // Calcular totales basado en horarios (según ARTÍCULO SEXTO)
-    const fechaSalida = new Date(viatico.fechaSalida);
-    const fechaRetorno = new Date(viatico.fechaRetorno);
+    const fechaSalida = parseDateLocal(viatico.fechaSalida);
+    const fechaRetorno = parseDateLocal(viatico.fechaRetorno);
     const horaSalida = viatico.horaSalida;
     const horaRetorno = viatico.horaRetorno;
     
@@ -47,8 +55,8 @@ server.get('/api/reportes', (req, res) => {
       desayuno = asignacionDiaria * 0.10;
     }
     
-    // ALMUERZO: Salida >= 11:00 AM Y Retorno >= 1:00 PM
-    if (horaSalidaNum >= 11 && horaRetornoNum >= 13) {
+    // ALMUERZO: Debe estar en viaje durante hora de almuerzo (11 AM - 1 PM)
+    if (horaSalidaNum < 13 && horaRetornoNum > 11) {
       almuerzo = asignacionDiaria * 0.25;
     }
     
@@ -75,7 +83,7 @@ server.get('/api/reportes', (req, res) => {
     
     return {
       id: viatico.id,
-      fecha: new Date(viatico.fechaSalida).toLocaleDateString('es-ES'),
+      fecha: parseDateLocal(viatico.fechaSalida).toLocaleDateString('es-ES'),
       empleado: empleado ? empleado.nombreCompleto : 'DESCONOCIDO',
       cedula: viatico.cedula,
       destino: destino ? destino.nombre : 'DESCONOCIDO',
@@ -104,15 +112,17 @@ server.get('/api/reportes', (req, res) => {
   
   if (fechaInicio || fechaFin) {
     reportes = reportes.filter(r => {
-      const fechaReporte = new Date(r.fecha.split('/').reverse().join('-'));
+      // Convertir fecha formateada DD/MM/YYYY a YYYY-MM-DD para parseDate
+      const [day, month, year] = r.fecha.split('/');
+      const fechaReporte = parseDateLocal(`${year}-${month}-${day}`);
       
       if (fechaInicio) {
-        const inicio = new Date(fechaInicio);
+        const inicio = parseDateLocal(fechaInicio);
         if (fechaReporte < inicio) return false;
       }
       
       if (fechaFin) {
-        const fin = new Date(fechaFin);
+        const fin = parseDateLocal(fechaFin);
         if (fechaReporte > fin) return false;
       }
       

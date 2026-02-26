@@ -15,19 +15,22 @@ import { ToastrService } from 'ngx-toastr';
 export class ModalDocumentosComponent {
   @Input() viajeIndex: number = 0;
   @Output() documentosSeleccionados = new EventEmitter<Documento[]>();
+  @Output() comprobantesSeleccionados = new EventEmitter<Documento[]>();
   
   mostrarModal = false;
   documentos: Documento[] = [];
   archivosSeleccionados: File[] = [];
+  tipoActual: 'documentos' | 'comprobantes' = 'documentos'; // Para saber qué tipo estamos manejando
   
   constructor(
     private documentosService: DocumentosService,
     private toastr: ToastrService
   ) {}
 
-  abrirModal(documentosExistentes: Documento[] = []): void {
+  abrirModal(documentosExistentes: Documento[] = [], tipo: 'documentos' | 'comprobantes' = 'documentos'): void {
     this.documentos = [...documentosExistentes];
     this.archivosSeleccionados = [];
+    this.tipoActual = tipo;
     this.mostrarModal = true;
   }
 
@@ -70,7 +73,11 @@ export class ModalDocumentosComponent {
   }
 
   guardarDocumentos(): void {
-    this.documentosSeleccionados.emit(this.documentos);
+    if (this.tipoActual === 'comprobantes') {
+      this.comprobantesSeleccionados.emit(this.documentos);
+    } else {
+      this.documentosSeleccionados.emit(this.documentos);
+    }
     this.cerrarModal();
   }
 

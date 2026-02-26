@@ -13,6 +13,10 @@ export interface Viaje {
   nombreDestino?: string;
   esTuristica: boolean;
   documentos: Documento[];
+  // Transporte
+  esChofer: boolean;
+  costoTransporte: number; // Manual, en RD$
+  comprobantesTransporte: Documento[]; // Recibos, fotos peaje, etc.
   // Campos calculados (no se envían al backend)
   calculos?: CalculoDietaPorDia[];
 }

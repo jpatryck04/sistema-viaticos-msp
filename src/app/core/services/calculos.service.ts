@@ -16,13 +16,31 @@ export class CalculosService {
   constructor() { }
 
   /**
+   * Parsea una fecha en formato ISO (YYYY-MM-DD) como fecha local,
+   * evitando problemas de zona horaria UTC
+   * 
+   * @param dateString Fecha en formato YYYY-MM-DD o Date object
+   * @returns Date object en zona horaria local
+   */
+  private parseDateLocal(dateString: string | Date): Date {
+    if (dateString instanceof Date) {
+      return new Date(dateString); // Ya es Date, solo copiar
+    }
+    
+    // Parsear string YYYY-MM-DD
+    const [year, month, day] = dateString.split('-').map(Number);
+    // Usar constructor con números para crear fecha en zona local, no UTC
+    return new Date(year, month - 1, day);
+  }
+
+  /**
    * Calcula los viáticos para un viaje, generando un array de días
    */
   calcularViaticosPorViaje(
     asignacionDiaria: number,
-    fechaSalida: Date,
+    fechaSalida: Date | string,
     horaSalida: string,
-    fechaRetorno: Date,
+    fechaRetorno: Date | string,
     horaRetorno: string,
     nombreDestino: string,
     esTuristica: boolean,
@@ -31,9 +49,9 @@ export class CalculosService {
     
     const resultados: CalculoDietaPorDia[] = [];
     
-    // Asegurarnos de que trabajamos con objetos Date correctos
-    const salida = new Date(fechaSalida);
-    const retorno = new Date(fechaRetorno);
+    // Asegurarnos de que trabajamos con objetos Date correctos, parseando como zona local
+    const salida = this.parseDateLocal(fechaSalida);
+    const retorno = this.parseDateLocal(fechaRetorno);
     
     // Calcular diferencia en días
     const diffTime = retorno.getTime() - salida.getTime();
@@ -137,7 +155,7 @@ export class CalculosService {
    * Calcula la dieta para un día específico
    * ARTÍCULO SEXTO - Criterios de asignación de viáticos:
    * - DESAYUNO: Se cubre cuando personal sale de 6:00 AM a 10:00 AM
-   * - ALMUERZO: Se cubre cuando sale >= 11:00 AM y regresa >= 1:00 PM
+   * - ALMUERZO: Se cubre cuando está en viaje durante 11:00 AM - 1:00 PM (salida < 1 PM y retorno > 11 AM)
    * - CENA: Se cubre cuando regresa >= 6:00 PM
    */
   private calcularDietaPorDia(
@@ -170,9 +188,9 @@ export class CalculosService {
         desayuno = asignacionDiaria * this.PORC_DESAYUNO;
       }
       
-      // ALMUERZO: Salida >= 11:00 AM (11.0) Y Retorno >= 1:00 PM (13.0)
-      // Ambas condiciones deben cumplirse simultáneamente
-      if (horaSalidaNum >= 11 && horaRetornoNum >= 13) {
+      // ALMUERZO: Personal debe estar en viaje DURANTE la hora de almuerzo (11 AM - 1 PM)
+      // Condición: Salida ANTES de 1:00 PM (13.0) Y Retorno DESPUÉS de 11:00 AM (11.0)
+      if (horaSalidaNum < 13 && horaRetornoNum > 11) {
         almuerzo = asignacionDiaria * this.PORC_ALMUERZO;
       }
       

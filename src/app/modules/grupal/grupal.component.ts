@@ -72,6 +72,15 @@ export class GrupalComponent implements OnInit {
     this.agregarFila(); // Agregar primera fila vacía
   }
 
+  /**
+   * Parsea una fecha en formato ISO (YYYY-MM-DD) como fecha local,
+   * evitando problemas de zona horaria UTC
+   */
+  private parseDateLocal(dateString: string): Date {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
   // Getters
   get viajesArray(): FormArray {
     return this.viajesForm.get('viajes') as FormArray;
@@ -113,7 +122,10 @@ export class GrupalComponent implements OnInit {
       esTuristica: [false],
       idDestino: ['', [Validators.required]],
       nombreDestino: [''],
-      transporte: [0],
+      // Transporte
+      esChofer: [false],
+      costoTransporte: [0, [Validators.required, Validators.min(0)]],
+      comprobantesTransporte: [[], [this.validarComprobantesTransporte.bind(this)]],
       totalCalculado: [0],
       documentos: [[], [this.validarDocumentosRequeridos.bind(this)]],
       empleadoValido: [false],
@@ -127,8 +139,8 @@ export class GrupalComponent implements OnInit {
           return null;
         }
         
-        const fechaSalida = new Date(salida);
-        const fechaRetorno = new Date(retorno);
+        const fechaSalida = this.parseDateLocal(salida);
+        const fechaRetorno = this.parseDateLocal(retorno);
         
         if (fechaRetorno < fechaSalida) {
           return { fechaRetornoMenor: true };
@@ -136,7 +148,28 @@ export class GrupalComponent implements OnInit {
         
         return null;
       }
-    })
+    });
+
+    // Validación condicional: si es chofer, requiere comprobantes
+    fila.get('esChofer')?.valueChanges.subscribe((esChofer) => {
+      const comprobantesControl = fila.get('comprobantesTransporte');
+      const costoControl = fila.get('costoTransporte');
+      
+      if (esChofer) {
+        // Si es chofer: requiere comprobantes y costo
+        comprobantesControl?.setValidators([this.validarComprobantesTransporte.bind(this)]);
+        costoControl?.setValidators([Validators.required, Validators.min(0)]);
+      } else {
+        // Si NO es chofer: limpiar valores
+        costoControl?.setValue(0);
+        comprobantesControl?.setValue([] as any);
+        comprobantesControl?.setValidators([]);
+        costoControl?.setValidators([]);
+      }
+      
+      comprobantesControl?.updateValueAndValidity({ emitEvent: false });
+      costoControl?.updateValueAndValidity({ emitEvent: false });
+    });
 
     // Suscribirse a cambios en cédula
     fila.get('cedula')?.valueChanges.subscribe(cedula => {
@@ -162,6 +195,15 @@ export class GrupalComponent implements OnInit {
     const documentos = control.value as any[];
     if (!documentos || documentos.length === 0) {
       return { documentosRequeridos: true };
+    }
+    return null;
+  }
+
+  validarComprobantesTransporte(control: AbstractControl): ValidationErrors | null {
+    // Este validador solo es llamado si esChofer es true
+    const comprobantes = control.value as any[];
+    if (!comprobantes || comprobantes.length === 0) {
+      return { comprobantesTransporteRequeridos: true };
     }
     return null;
   }
@@ -276,9 +318,9 @@ export class GrupalComponent implements OnInit {
 
     const resultados = this.calculosService.calcularViaticosPorViaje(
       asignacionDiaria,
-      new Date(fechaSalida),
+      fechaSalida,
       horaSalida,
-      new Date(fechaRetorno),
+      fechaRetorno,
       horaRetorno,
       destino.nombre,
       esTuristica,
@@ -306,6 +348,25 @@ export class GrupalComponent implements OnInit {
     
     if (documentos.length > 0) {
       this.toastr.success(`${documentos.length} documento(s) adjuntado(s)`, 'Éxito');
+    }
+  }
+
+  // ============================================
+  // MANEJO DE COMPROBANTES DE TRANSPORTE
+  // ============================================
+  abrirModalComprobantes(index: number): void {
+    this.filaActualIndex = index;
+    const fila = this.viajesArray.at(index);
+    const comprobantesActuales = fila.get('comprobantesTransporte')?.value || [];
+    this.modalDocumentos.abrirModal(comprobantesActuales, 'comprobantes');
+  }
+
+  onComprobantesSeleccionados(comprobantes: Documento[]): void {
+    const fila = this.viajesArray.at(this.filaActualIndex);
+    fila.patchValue({ comprobantesTransporte: comprobantes });
+    
+    if (comprobantes.length > 0) {
+      this.toastr.success(`${comprobantes.length} comprobante(s) de transporte adjuntado(s)`, 'Éxito');
     }
   }
 
@@ -357,17 +418,25 @@ export class GrupalComponent implements OnInit {
 
       // Construir payload
       const viaje = fila.value;
+      const fechaViaje = this.parseDateLocal(viaje.fechaSalida);
       viajesPayload.push({
         cedula: viaje.cedula,
-        mes: new Date(viaje.fechaSalida).getMonth() + 1,
-        anio: new Date(viaje.fechaSalida).getFullYear(),
+        mes: fechaViaje.getMonth() + 1,
+        anio: fechaViaje.getFullYear(),
         fechaSalida: viaje.fechaSalida,
         horaSalida: viaje.horaSalida,
         fechaRetorno: viaje.fechaRetorno,
         horaRetorno: viaje.horaRetorno,
         idDestino: Number(viaje.idDestino),
         esTuristica: viaje.esTuristica,
+        esChofer: viaje.esChofer,
+        costoTransporte: viaje.costoTransporte,
         documentos: viaje.documentos.map((doc: Documento) => ({
+          nombre: doc.nombre,
+          tipo: doc.tipo,
+          tamano: doc.tamano
+        })),
+        comprobantesTransporte: viaje.comprobantesTransporte.map((doc: Documento) => ({
           nombre: doc.nombre,
           tipo: doc.tipo,
           tamano: doc.tamano
@@ -417,9 +486,9 @@ export class GrupalComponent implements OnInit {
           'Nombre': viaje.nombre,
           'Cargo': viaje.cargo,
           'Asig. Diaria': viaje.asignacionDiaria,
-          'Fecha Salida': this.formatearFecha(new Date(viaje.fechaSalida)),
+          'Fecha Salida': this.formatearFecha(this.parseDateLocal(viaje.fechaSalida)),
           'Hora Salida': viaje.horaSalida,
-          'Fecha Retorno': this.formatearFecha(new Date(viaje.fechaRetorno)),
+          'Fecha Retorno': this.formatearFecha(this.parseDateLocal(viaje.fechaRetorno)),
           'Hora Retorno': viaje.horaRetorno,
           'Destino': viaje.nombreDestino,
           'Turística': viaje.esTuristica ? 'SÍ' : 'NO',
