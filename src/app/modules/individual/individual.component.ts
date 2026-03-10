@@ -226,7 +226,7 @@ export class IndividualComponent implements OnInit {
       documentos: [[], [this.validarDocumentosRequeridos.bind(this)]],
       // Transporte
       esChofer: [false],
-      costoTransporte: [0, [Validators.required, Validators.min(0)]],
+      costoTransporte: [0],
       comprobantesTransporte: [[]]
     }, {
       validators: (formGroup: AbstractControl) => {
@@ -254,15 +254,16 @@ export class IndividualComponent implements OnInit {
       const costoControl = viajeGroup.get('costoTransporte');
       
       if (esChofer) {
-        // Si es chofer: costo se mantiene requerido, comprobantes no forzado (puede variar)
-        comprobantesControl?.setValidators([]);
-        costoControl?.setValidators([Validators.required, Validators.min(0)]);
-      } else {
-        // Si NO es chofer: limpiar valores y no requiere validación
+        // Si está marcado el checkbox de transporte, ocultamos el manual physical
+        // y NO requerimos comprobantes/costo (lo calcula a nivel diario)
         costoControl?.setValue(0);
         comprobantesControl?.setValue([] as any);
         comprobantesControl?.setValidators([]);
         costoControl?.setValidators([]);
+      } else {
+        // Si NO utiliza el panel de día, requerimos que use el campo anual
+        comprobantesControl?.setValidators([this.validarComprobantesTransporte.bind(this)]);
+        costoControl?.setValidators([Validators.required, Validators.min(0)]);
       }
       
       comprobantesControl?.updateValueAndValidity({ emitEvent: false });
