@@ -221,7 +221,7 @@
 
                   <div class="col-md-5">
                     <label class="form-label fw-bold">Evidencias (archivos)</label>
-                    <input type="file" class="form-control form-control-sm" multiple (change)="onTransporteFilesChange($event, i)">
+                    <input #fileTransporteInput type="file" class="form-control form-control-sm" multiple (change)="onTransporteFilesChange($event, i)">
                   </div>
 
                   <div class="col-md-2">
