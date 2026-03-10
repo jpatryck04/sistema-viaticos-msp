@@ -33,9 +33,37 @@ export class CalculosService {
     return new Date(year, month - 1, day);
   }
 
+  private diffDays(a: Date, b: Date): number {
+    const a0 = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
+    const b0 = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime();
+    return Math.round((b0 - a0) / (1000 * 60 * 60 * 24));
+  }
+
+  private enumerarDiasISO(desde: Date, hasta: Date): Date[] {
+    const dias: Date[] = [];
+    const actual = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+    const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+    while (actual.getTime() <= fin.getTime()) {
+      dias.push(new Date(actual));
+      actual.setDate(actual.getDate() + 1);
+    }
+    return dias;
+  }
+
+  private rangoTocaVentana(inicio: number, fin: number, wIni: number, wFin: number): boolean {
+    return Math.max(inicio, wIni) <= Math.min(fin, wFin);
+  }
+
   /**
    * Calcula los viáticos para un viaje, generando un array de días
    */
+  // Ventanas de tiempo para dieta (minutos desde 00:00)
+  private readonly DESAYUNO_INI = 6 * 60;
+  private readonly DESAYUNO_FIN = 10 * 60;
+  private readonly ALMUERZO_INI = 11 * 60;
+  private readonly ALMUERZO_FIN = 13 * 60;
+  private readonly CENA_MIN = 18 * 60;
+
   calcularViaticosPorViaje(
     asignacionDiaria: number,
     fechaSalida: Date | string,
@@ -46,108 +74,98 @@ export class CalculosService {
     esTuristica: boolean,
     costoTransporte: number = 0
   ): CalculoDietaPorDia[] {
-    
     const resultados: CalculoDietaPorDia[] = [];
-    
-    // Asegurarnos de que trabajamos con objetos Date correctos, parseando como zona local
+
     const salida = this.parseDateLocal(fechaSalida);
     const retorno = this.parseDateLocal(fechaRetorno);
-    
-    // Calcular diferencia en días
-    const diffTime = retorno.getTime() - salida.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      // Mismo día
-      const calculo = this.calcularDietaPorDia(
-        asignacionDiaria,
-        salida,
-        retorno,
-        horaSalida,
-        horaRetorno,
-        esTuristica,
-        false
-      );
-      
-      resultados.push({
-        dia: salida,
-        diaStr: this.formatearFecha(salida),
-        horaSalida: horaSalida,
-        horaRetorno: horaRetorno,
-        destino: nombreDestino,
-        esTuristica: esTuristica,
-        transporte: costoTransporte,
-        ...calculo,
-        totalGastos: calculo.totalDieta + costoTransporte
-      });
-      
-    } else {
-      // Múltiples días
-      for (let i = 0; i <= diffDays; i++) {
-        const fechaActual = new Date(salida);
-        fechaActual.setDate(salida.getDate() + i);
-        
-        let calculo: CalculoDieta;
-        let horaSalidaStr = '';
-        let horaRetornoStr = '';
-        
-        if (i === 0) {
-          // Día de salida
-          calculo = this.calcularDietaPorDia(
-            asignacionDiaria,
-            salida,
-            retorno,
-            horaSalida,
-            '11:59 PM', // Hasta fin del día
-            esTuristica,
-            false
-          );
-          horaSalidaStr = horaSalida;
-          horaRetornoStr = '11:59 PM';
-          
-        } else if (i === diffDays) {
-          // Día de retorno
-          calculo = this.calcularDietaPorDia(
-            asignacionDiaria,
-            salida,
-            retorno,
-            '12:00 AM',
-            horaRetorno,
-            esTuristica,
-            false
-          );
-          horaSalidaStr = '12:00 AM';
-          horaRetornoStr = horaRetorno;
-          
-        } else {
-          // Día intermedio (100%)
-          calculo = this.calcularDietaPorDia(
-            asignacionDiaria,
-            salida,
-            retorno,
-            '12:00 AM',
-            '11:59 PM',
-            esTuristica,
-            true // Día intermedio
-          );
-          horaSalidaStr = '12:00 AM';
-          horaRetornoStr = '11:59 PM';
-        }
-        
-        resultados.push({
-          dia: new Date(fechaActual),
-          diaStr: this.formatearFecha(fechaActual),
-          horaSalida: horaSalidaStr,
-          horaRetorno: horaRetornoStr,
-          destino: nombreDestino,
-          esTuristica: esTuristica,
-          transporte: i === 0 ? costoTransporte : 0, // Transporte solo el primer día
-          ...calculo,
-          totalGastos: calculo.totalDieta + (i === 0 ? costoTransporte : 0)
-        });
+
+    const noches = this.diffDays(salida, retorno);
+    const dias = this.enumerarDiasISO(salida, retorno);
+
+    const salidaMin = this.convertirHoraANumero(horaSalida) * 60;
+    const retornoMin = this.convertirHoraANumero(horaRetorno) * 60;
+
+    for (let idx = 0; idx < dias.length; idx++) {
+      const fecha = dias[idx];
+      const esDiaSalida = idx === 0;
+      const esDiaRetorno = idx === dias.length - 1;
+      const esIntermedio = !esDiaSalida && !esDiaRetorno;
+
+      let desayuno = 0;
+      let almuerzo = 0;
+      let cena = 0;
+      let alojamiento = 0;
+
+      if (esIntermedio) {
+        desayuno = asignacionDiaria * this.PORC_DESAYUNO;
+        almuerzo = asignacionDiaria * this.PORC_ALMUERZO;
+        cena = asignacionDiaria * this.PORC_CENA;
+        alojamiento = asignacionDiaria * this.PORC_ALOJAMIENTO;
       }
+
+      if (esDiaSalida) {
+        if (salidaMin >= this.DESAYUNO_INI && salidaMin <= this.DESAYUNO_FIN) {
+          desayuno = asignacionDiaria * this.PORC_DESAYUNO;
+        }
+
+        const tocaAlmuerzo = (noches > 0)
+          ? true
+          : this.rangoTocaVentana(salidaMin, retornoMin, this.ALMUERZO_INI, this.ALMUERZO_FIN);
+
+        if (tocaAlmuerzo) {
+          almuerzo = asignacionDiaria * this.PORC_ALMUERZO;
+        }
+
+        const tocaCena = (noches > 0) ? true : retornoMin >= this.CENA_MIN;
+        if (tocaCena) {
+          cena = asignacionDiaria * this.PORC_CENA;
+        }
+
+        if (noches > 0) {
+          alojamiento = asignacionDiaria * this.PORC_ALOJAMIENTO;
+        }
+      }
+
+      if (esDiaRetorno && !esDiaSalida) {
+        if (retornoMin >= this.DESAYUNO_INI) {
+          desayuno = asignacionDiaria * this.PORC_DESAYUNO;
+        }
+        if (retornoMin >= this.ALMUERZO_INI) {
+          almuerzo = asignacionDiaria * this.PORC_ALMUERZO;
+        }
+        if (retornoMin >= this.CENA_MIN) {
+          cena = asignacionDiaria * this.PORC_CENA;
+        }
+      }
+
+      if (esTuristica) {
+        desayuno *= this.INCREMENTO_TURISTICA;
+        almuerzo *= this.INCREMENTO_TURISTICA;
+        cena *= this.INCREMENTO_TURISTICA;
+        alojamiento *= this.INCREMENTO_TURISTICA;
+      }
+
+      const totalDieta = desayuno + almuerzo + cena + alojamiento;
+      const transporte = esDiaSalida ? costoTransporte : 0;
+      const totalGastos = totalDieta + transporte;
+
+      resultados.push({
+        dia: new Date(fecha),
+        diaStr: this.formatearFecha(fecha),
+        horaSalida: esDiaSalida ? horaSalida : '—',
+        horaRetorno: esDiaRetorno ? horaRetorno : '—',
+        destino: nombreDestino,
+        esTuristica,
+        desayuno,
+        almuerzo,
+        cena,
+        alojamiento,
+        totalDieta,
+        transporte,
+        totalGastos
+      });
     }
-    
+
     return resultados;
   }
 
