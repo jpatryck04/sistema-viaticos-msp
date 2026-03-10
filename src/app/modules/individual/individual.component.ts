@@ -227,7 +227,7 @@ export class IndividualComponent implements OnInit {
       // Transporte
       esChofer: [false],
       costoTransporte: [0, [Validators.required, Validators.min(0)]],
-      comprobantesTransporte: [[], [this.validarComprobantesTransporte.bind(this)]]
+      comprobantesTransporte: [[]]
     }, {
       validators: (formGroup: AbstractControl) => {
         const salida = formGroup.get('fechaSalida')?.value;
@@ -248,14 +248,14 @@ export class IndividualComponent implements OnInit {
       }
     });
 
-    // Validación condicional: si es chofer, requiere comprobantes
+    // Validación condicional: esChofer habilita costo, comprobantes opcional
     viajeGroup.get('esChofer')?.valueChanges.subscribe((esChofer) => {
       const comprobantesControl = viajeGroup.get('comprobantesTransporte');
       const costoControl = viajeGroup.get('costoTransporte');
       
       if (esChofer) {
-        // Si es chofer: requiere comprobantes
-        comprobantesControl?.setValidators([this.validarComprobantesTransporte.bind(this)]);
+        // Si es chofer: costo se mantiene requerido, comprobantes no forzado (puede variar)
+        comprobantesControl?.setValidators([]);
         costoControl?.setValidators([Validators.required, Validators.min(0)]);
       } else {
         // Si NO es chofer: limpiar valores y no requiere validación
