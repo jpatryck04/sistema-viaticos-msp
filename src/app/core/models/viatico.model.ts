@@ -56,6 +56,9 @@ export interface Viaje {
   /** Comprobantes de transporte (recibos, fotos peaje, etc.) */
   comprobantesTransporte: Documento[];
   
+  /** Transporte desglosado por día (opcional) */
+  transportePorDia?: Array<{ fechaISO: string; monto: number; evidencias: Documento[] }>;
+  
   /** Cálculos diarios (no se envían al backend, solo uso local) */
   calculos?: CalculoDietaPorDia[];
 }

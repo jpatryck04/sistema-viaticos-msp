@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ChangeDetectorRef, ElementRef } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 import { BsDatepickerConfig } from 'ngx-bootstrap/datepicker';
@@ -22,6 +22,7 @@ import { ModalDocumentosComponent } from '../../shared/components/modal-document
 })
 export class IndividualComponent implements OnInit {
   @ViewChild('modalDocumentos') modalDocumentos!: ModalDocumentosComponent;
+  @ViewChild('fileTransporteInput') fileTransporteInput?: ElementRef<HTMLInputElement>;
   
   // Formularios
   busquedaForm: FormGroup;
@@ -39,7 +40,14 @@ export class IndividualComponent implements OnInit {
   guardando = false;
   empleadoEncontrado = false;
   viajeActualIndex = 0;
-  
+
+  // Transporte por viaje
+  mostrarPanelTransportePorViaje: Record<number, boolean> = {};
+  transporteDiaSeleccionadoPorViaje: Record<number, string> = {};
+  transporteMontoTempPorViaje: Record<number, number> = {};
+  transporteEvidenciasTempPorViaje: Record<number, Documento[]> = {};
+  transportesPorViaje: Record<number, Array<{ fechaISO: string; monto: number; evidencias: Documento[] }>> = {};
+
   // Opciones de fecha
   datePickerConfig: Partial<BsDatepickerConfig> = {
     dateInputFormat: 'DD/MM/YYYY',
@@ -73,12 +81,63 @@ export class IndividualComponent implements OnInit {
   }
 
   /**
+   * Normaliza valores de fecha a ISO (YYYY-MM-DD).
+   */
+  private normalizeToISO(value: string | Date): string {
+    if (!value) {
+      return '';
+    }
+
+    if (value instanceof Date) {
+      return this.toISODate(value);
+    }
+
+    let x = String(value).trim();
+
+    // Formato 2026-03-10T00:00:00.000Z
+    if (x.includes('T')) {
+      x = x.split('T')[0];
+    }
+
+    // Formato local 10/03/2026
+    if (x.includes('/')) {
+      const parts = x.split('/');
+      if (parts.length === 3) {
+        const [dd, mm, yyyy] = parts;
+        return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+      }
+    }
+
+    return x;
+  }
+
+  /**
    * Parsea una fecha en formato ISO (YYYY-MM-DD) como fecha local,
    * evitando problemas de zona horaria UTC
    */
-  private parseDateLocal(dateString: string): Date {
-    const [year, month, day] = dateString.split('-').map(Number);
+  public parseDateLocal(dateString: string | Date): Date {
+    const iso = this.normalizeToISO(dateString);
+    const [year, month, day] = iso.split('-').map(Number);
     return new Date(year, month - 1, day);
+  }
+
+  public toISODate(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  public enumerarDiasISO(desde: Date, hasta: Date): string[] {
+    const dias: string[] = [];
+    const actual = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+    const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+
+    while (actual.getTime() <= fin.getTime()) {
+      dias.push(this.toISODate(actual));
+      actual.setDate(actual.getDate() + 1);
+    }
+    return dias;
   }
 
   // Getters
@@ -168,7 +227,7 @@ export class IndividualComponent implements OnInit {
       // Transporte
       esChofer: [false],
       costoTransporte: [0, [Validators.required, Validators.min(0)]],
-      comprobantesTransporte: [[], [this.validarComprobantesTransporte.bind(this)]]
+      comprobantesTransporte: [[]]
     }, {
       validators: (formGroup: AbstractControl) => {
         const salida = formGroup.get('fechaSalida')?.value;
@@ -189,14 +248,14 @@ export class IndividualComponent implements OnInit {
       }
     });
 
-    // Validación condicional: si es chofer, requiere comprobantes
+    // Validación condicional: esChofer habilita costo, comprobantes opcional
     viajeGroup.get('esChofer')?.valueChanges.subscribe((esChofer) => {
       const comprobantesControl = viajeGroup.get('comprobantesTransporte');
       const costoControl = viajeGroup.get('costoTransporte');
       
       if (esChofer) {
-        // Si es chofer: requiere comprobantes
-        comprobantesControl?.setValidators([this.validarComprobantesTransporte.bind(this)]);
+        // Si es chofer: costo se mantiene requerido, comprobantes no forzado (puede variar)
+        comprobantesControl?.setValidators([]);
         costoControl?.setValidators([Validators.required, Validators.min(0)]);
       } else {
         // Si NO es chofer: limpiar valores y no requiere validación
@@ -233,9 +292,17 @@ export class IndividualComponent implements OnInit {
   agregarViaje(): void {
     const nuevoViaje = this.crearViajeFormGroup();
     this.viajesArray.push(nuevoViaje);
-    
+    const index = this.viajesArray.length - 1;
+
+    this.transportesPorViaje[index] = [];
+    this.mostrarPanelTransportePorViaje[index] = false;
+    this.transporteDiaSeleccionadoPorViaje[index] = '';
+    this.transporteMontoTempPorViaje[index] = 0;
+    this.transporteEvidenciasTempPorViaje[index] = [];
+
     // Suscribirse a cambios para recalcular
     nuevoViaje.valueChanges.subscribe(() => {
+      this.sincronizarTransporteParaViaje(index);
       this.calcularTodosLosViajes();
     });
     
@@ -247,11 +314,130 @@ export class IndividualComponent implements OnInit {
 
   eliminarViaje(index: number): void {
     this.viajesArray.removeAt(index);
+    delete this.mostrarPanelTransportePorViaje[index];
+    delete this.transporteDiaSeleccionadoPorViaje[index];
+    delete this.transporteMontoTempPorViaje[index];
+    delete this.transporteEvidenciasTempPorViaje[index];
+    delete this.transportesPorViaje[index];
+
+    // mover transportes de los índices siguientes hacia atrás
+    const nuevasTransportes: typeof this.transportesPorViaje = {};
+    const nuevasMostrar: Record<number, boolean> = {};
+    const nuevasDia: Record<number, string> = {};
+    const nuevasMonto: Record<number, number> = {};
+    const nuevasEvid: Record<number, Documento[]> = {};
+
+    this.viajesArray.controls.forEach((_, i) => {
+      nuevasTransportes[i] = this.transportesPorViaje[i < index ? i : i + 1] ?? [];
+      nuevasMostrar[i] = this.mostrarPanelTransportePorViaje[i < index ? i : i + 1] ?? false;
+      nuevasDia[i] = this.transporteDiaSeleccionadoPorViaje[i < index ? i : i + 1] ?? '';
+      nuevasMonto[i] = this.transporteMontoTempPorViaje[i < index ? i : i + 1] ?? 0;
+      nuevasEvid[i] = this.transporteEvidenciasTempPorViaje[i < index ? i : i + 1] ?? [];
+    });
+
+    this.transportesPorViaje = nuevasTransportes;
+    this.mostrarPanelTransportePorViaje = nuevasMostrar;
+    this.transporteDiaSeleccionadoPorViaje = nuevasDia;
+    this.transporteMontoTempPorViaje = nuevasMonto;
+    this.transporteEvidenciasTempPorViaje = nuevasEvid;
+
     this.calcularTodosLosViajes();
     
     if (this.viajesArray.length === 0) {
       this.agregarViaje();
     }
+  }
+
+  // Transporte por día (UI por viaje)
+  togglePanelTransporte(index: number): void {
+    this.mostrarPanelTransportePorViaje[index] = !this.mostrarPanelTransportePorViaje[index];
+
+    if (this.mostrarPanelTransportePorViaje[index]) {
+      this.sincronizarTransporteParaViaje(index);
+    }
+  }
+
+  private sincronizarTransporteParaViaje(index: number): void {
+    const viajeForm = this.viajesArray.at(index);
+    const fechaSalida = viajeForm.get('fechaSalida')?.value;
+    const fechaRetorno = viajeForm.get('fechaRetorno')?.value;
+
+    if (!fechaSalida || !fechaRetorno) {
+      this.transporteDiaSeleccionadoPorViaje[index] = '';
+      return;
+    }
+
+    const dias = this.enumerarDiasISO(this.parseDateLocal(fechaSalida), this.parseDateLocal(fechaRetorno));
+    if (dias.length === 1) {
+      this.transporteDiaSeleccionadoPorViaje[index] = dias[0];
+    } else if (!dias.includes(this.transporteDiaSeleccionadoPorViaje[index])) {
+      this.transporteDiaSeleccionadoPorViaje[index] = '';
+    }
+  }
+
+  onTransporteFilesChange(event: Event, index: number): void {
+    const input = event.target as HTMLInputElement;
+    const archivos = input.files;
+    this.transporteEvidenciasTempPorViaje[index] = archivos ? Array.from(archivos).map((file) => ({ nombre: file.name, tipo: file.type || 'archivo', tamano: file.size })) : [] as any;
+  }
+
+  guardarTransporteDelDia(index: number): void {
+    const viajeForm = this.viajesArray.at(index);
+    const fechaSalida = viajeForm.get('fechaSalida')?.value;
+    const fechaRetorno = viajeForm.get('fechaRetorno')?.value;
+
+    if (!fechaSalida || !fechaRetorno) {
+      this.toastr.warning('Defina un rango de fechas válido primero.', 'Transporte');
+      return;
+    }
+
+    const dias = this.enumerarDiasISO(this.parseDateLocal(fechaSalida), this.parseDateLocal(fechaRetorno));
+    const diaSeleccionadoRaw = this.transporteDiaSeleccionadoPorViaje[index];
+    const diaSeleccionado = this.normalizeToISO(diaSeleccionadoRaw);
+
+    if (!diaSeleccionado) {
+      this.toastr.warning('Seleccione un día válido del rango de viaje.', 'Transporte');
+      return;
+    }
+
+    const diasNormalizados = dias.map(d => this.normalizeToISO(d));
+    if (!diasNormalizados.includes(diaSeleccionado)) {
+      this.toastr.warning('El día seleccionado no forma parte del viaje.', 'Transporte');
+      return;
+    }
+
+    const monto = Number(this.transporteMontoTempPorViaje[index] ?? 0);
+    if (monto <= 0) {
+      this.toastr.warning('Ingrese un monto de transporte mayor a 0.', 'Transporte');
+      return;
+    }
+
+    const lista = this.transportesPorViaje[index] ?? [];
+    const existing = lista.find((t) => t.fechaISO === diaSeleccionado);
+
+    if (existing) {
+      existing.monto = monto;
+      existing.evidencias = [...existing.evidencias, ...(this.transporteEvidenciasTempPorViaje[index] || [])];
+    } else {
+      lista.push({ fechaISO: diaSeleccionado, monto, evidencias: [...(this.transporteEvidenciasTempPorViaje[index] || [])] });
+    }
+
+    this.transportesPorViaje[index] = lista.sort((a, b) => a.fechaISO.localeCompare(b.fechaISO));
+
+    this.transporteMontoTempPorViaje[index] = 0;
+    this.transporteEvidenciasTempPorViaje[index] = [];
+    if (this.fileTransporteInput?.nativeElement) {
+      this.fileTransporteInput.nativeElement.value = '';
+    }
+
+    this.toastr.success('Transporte agregado correctamente', 'Transporte');
+    this.calcularTodosLosViajes();
+  }
+
+  quitarTransporteDia(index: number, fechaISO: string): void {
+    const lista = this.transportesPorViaje[index] ?? [];
+    this.transportesPorViaje[index] = lista.filter((t) => t.fechaISO !== fechaISO);
+    this.calcularTodosLosViajes();
   }
 
   // ============================================
@@ -310,6 +496,10 @@ export class IndividualComponent implements OnInit {
       const destino = this.destinos.find(d => d.id === Number(viaje.idDestino));
       
       if (destino && viaje.fechaSalida && viaje.fechaRetorno) {
+        const transportes = this.transportesPorViaje[index] ?? [];
+        const mapaTransporte = new Map<string, number>();
+        transportes.forEach(t => mapaTransporte.set(this.normalizeToISO(t.fechaISO), t.monto));
+
         const resultados = this.calculosService.calcularViaticosPorViaje(
           this.empleado!.asignacionDiaria,
           viaje.fechaSalida,
@@ -318,10 +508,18 @@ export class IndividualComponent implements OnInit {
           viaje.horaRetorno,
           destino.nombre,
           viaje.esTuristica,
-          destino.costoTransporte
+          0
         );
-        
-        todosLosDias = [...todosLosDias, ...resultados];
+
+        const resultadosConTransporte = resultados.map((r) => {
+          const fechaKey = this.normalizeToISO(this.toISODate(r.dia));
+          const montoTransporte = mapaTransporte.get(fechaKey) ?? 0;
+          const transporteFinal = montoTransporte || (viaje.esChofer ? viaje.costoTransporte : 0);
+          const totalGastos = r.totalGastos - r.transporte + transporteFinal;
+          return { ...r, transporte: transporteFinal, totalGastos };
+        });
+
+        todosLosDias = [...todosLosDias, ...resultadosConTransporte];
       }
     });
 
@@ -370,9 +568,10 @@ export class IndividualComponent implements OnInit {
     this.guardando = true;
     
     // Construir el payload para el backend
-    const viajesPayload: Partial<Viaje>[] = this.viajesArray.controls.map(viajeForm => {
+    const viajesPayload: Partial<Viaje>[] = this.viajesArray.controls.map((viajeForm, index) => {
       const viaje = viajeForm.value;
       const fechaViaje = this.parseDateLocal(viaje.fechaSalida);
+      const transporteDia = this.transportesPorViaje[index] || [];
       return {
         cedula: this.empleado!.cedula,
         mes: fechaViaje.getMonth() + 1,
@@ -394,6 +593,11 @@ export class IndividualComponent implements OnInit {
           nombre: doc.nombre,
           tipo: doc.tipo,
           tamano: doc.tamano
+        })),
+        transportePorDia: transporteDia.map((t) => ({
+          fechaISO: t.fechaISO,
+          monto: t.monto,
+          evidencias: t.evidencias.map((doc: Documento) => ({ nombre: doc.nombre, tipo: doc.tipo, tamano: doc.tamano }))
         }))
       };
     });
