@@ -16,7 +16,8 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { Empleado } from '../models/empleado.model';
 import { Destino } from '../models/destino.model';
@@ -26,6 +27,8 @@ import { Viaje, ViaticoGuardado } from '../models/viatico.model';
   providedIn: 'root'
 })
 export class ApiService {
+  private reportesActualizados$ = new Subject<void>();
+
   /**
    * URL base de la API
    * Se obtiene de environment.ts (cambiar según ambiente)
@@ -70,25 +73,25 @@ export class ApiService {
   
   /**
    * Guarda los viáticos de un empleado individual
-   * @param viajes - Array de viajes a guardar
-   * @returns Observable<ViaticoGuardado> - Confirmación del guardado
    */
   guardarViaticosIndividual(viajes: Partial<Viaje>[]): Observable<ViaticoGuardado> {
     return this.http.post<ViaticoGuardado>(
       `${this.apiUrl}/viaticos/individual`,
       viajes
+    ).pipe(
+      tap(() => this.emitirActualizacionReportes())
     );
   }
 
   /**
    * Guarda los viáticos de un grupo de empleados
-   * @param viajes - Array de viajes en grupo a guardar
-   * @returns Observable<ViaticoGuardado> - Confirmación del guardado
    */
   guardarViaticosGrupal(viajes: Partial<Viaje>[]): Observable<ViaticoGuardado> {
     return this.http.post<ViaticoGuardado>(
       `${this.apiUrl}/viaticos/grupal`,
       viajes
+    ).pipe(
+      tap(() => this.emitirActualizacionReportes())
     );
   }
 
@@ -149,5 +152,13 @@ export class ApiService {
     }
     
     return this.http.get<any[]>(`${this.apiUrl}/reportes`, { params });
+  }
+
+  getReportesActualizados(): Observable<void> {
+    return this.reportesActualizados$.asObservable();
+  }
+
+  private emitirActualizacionReportes(): void {
+    this.reportesActualizados$.next();
   }
 }

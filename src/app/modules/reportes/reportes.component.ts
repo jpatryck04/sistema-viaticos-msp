@@ -1,5 +1,6 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -19,14 +20,27 @@ interface ReporteItem {
   estado: string;
 }
 
+function toNumber(value: number | string | undefined | null): number {
+  if (value === undefined || value === null || value === '') {
+    return 0;
+  }
+
+  if (typeof value === 'number' && !isNaN(value)) {
+    return value;
+  }
+
+  const parsed = Number(String(value).replace(/[^0-9.-]+/g, ''));
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
 @Component({
   selector: 'app-reportes',
   standalone: false,
   templateUrl: './reportes.component.html',
   styleUrls: ['./reportes.component.scss']
 })
-export class ReportesComponent implements OnInit {
+export class ReportesComponent implements OnInit, OnDestroy {
   filtrosForm: FormGroup;
+  private subscriptionReportes?: Subscription;
   
   // Array inicialmente vacío - los datos se cargan desde el API
   datosReporte: ReporteItem[] = [];
@@ -51,6 +65,42 @@ export class ReportesComponent implements OnInit {
 
   ngOnInit(): void {
     this.cargarReportes();
+
+    this.subscriptionReportes = this.apiService.getReportesActualizados().subscribe(() => {
+      this.cargarReportes();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptionReportes?.unsubscribe();
+  }
+
+  private normalizarReporteItem(item: any): ReporteItem {
+    const totalDieta = toNumber(item.totalDieta);
+
+    // Preferir el campo explícito de transporte
+    let transporte = toNumber(item.transporte);
+
+    // Si no viene transporte directo, buscar en transportePorDia (sumatoria)
+    if (transporte === 0 && Array.isArray(item.transportePorDia)) {
+      transporte = item.transportePorDia
+        .map((t: any) => toNumber(t?.monto))
+        .reduce((sum: number, v: number) => sum + v, 0);
+    }
+
+    const totalGeneral = toNumber(item.totalGeneral) || (totalDieta + transporte);
+
+    return {
+      id: Number(item.id) || 0,
+      fecha: item.fecha || '',
+      empleado: item.empleado || '',
+      cedula: item.cedula || '',
+      destino: item.destino || '',
+      totalDieta,
+      transporte,
+      totalGeneral,
+      estado: item.estado || 'Pendiente'
+    };
   }
 
   cargarReportes(): void {
@@ -58,7 +108,7 @@ export class ReportesComponent implements OnInit {
     
     this.apiService.getReportes().subscribe({
       next: (datos) => {
-        this.datosReporte = datos;
+        this.datosReporte = Array.isArray(datos) ? datos.map(this.normalizarReporteItem) : [];
         this.datosFiltrados = [...this.datosReporte];
         this.cargando = false;
         this.cdr.markForCheck();
