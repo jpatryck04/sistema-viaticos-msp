@@ -255,6 +255,7 @@
   .documento-print {
     padding: 0;
     page-break-after: always;
+    break-after: page;
   }
 
   .firma .linea {

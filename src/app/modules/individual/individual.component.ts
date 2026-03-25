@@ -9,7 +9,7 @@ import { ValidacionesService } from '../../core/services/validaciones.service';
 import { DocumentosService } from '../../core/services/documentos.service';
 
 import { Empleado } from '../../core/models/empleado.model';
-import { Destino, PROVINCIAS_TURISTICAS } from '../../core/models/destino.model';
+import { Destino, PROVINCIAS_NO_TURISTICAS, PROVINCIAS_TURISTICAS } from '../../core/models/destino.model';
 import { Documento } from '../../core/models/documento.model';
 import { CalculoDietaPorDia, Viaje } from '../../core/models/viatico.model';
 import { ModalDocumentosComponent } from '../../shared/components/modal-documentos/modal-documentos.component';
@@ -39,6 +39,7 @@ export class IndividualComponent implements OnInit, OnDestroy {
   destinos: Destino[] = [];
   destinosFiltrados: Destino[] = [];
   provinciasTuristicas = PROVINCIAS_TURISTICAS;
+  provinciasNoTuristicas = PROVINCIAS_NO_TURISTICAS;
   resultadosCalculo: CalculoDietaPorDia[] = [];
 
   // Estados
@@ -87,7 +88,7 @@ export class IndividualComponent implements OnInit, OnDestroy {
     // Formulario de viajes
     this.viajesForm = this.fb.group({
       mes: ['', [Validators.required, this.validacionesService.validadorMesActual()]],
-      actividad: ['COMISION DE SERVICIO', [Validators.required]],
+      actividad: ['', [Validators.required]],
       viajes: this.fb.array([])
     });
   }
@@ -101,7 +102,7 @@ export class IndividualComponent implements OnInit, OnDestroy {
   }
 
   get actividadImpresion(): string {
-    return (this.viajesForm.get('actividad')?.value || 'COMISION DE SERVICIO').toString().trim();
+    return (this.viajesForm.get('actividad')?.value || '').toString().trim();
   }
 
   ngOnInit(): void {
@@ -198,6 +199,15 @@ export class IndividualComponent implements OnInit, OnDestroy {
         this.empleadoEncontrado = true;
         this.toastr.success(`Empleado encontrado: ${empleado.nombreCompleto}`, 'Éxito');
 
+        // Reiniciar viajes para comenzar siempre con un solo registro
+        this.viajesArray.clear();
+        this.transportesPorViaje = {};
+        this.mostrarPanelTransportePorViaje = {};
+        this.transporteDiaSeleccionadoPorViaje = {};
+        this.transporteMontoTempPorViaje = {};
+        this.transporteEvidenciasTempPorViaje = {};
+        this.resultadosCalculo = [];
+
         // Inicializar con un viaje
         this.agregarViaje();
 
@@ -241,7 +251,9 @@ export class IndividualComponent implements OnInit, OnDestroy {
         this.provinciasTuristicas.includes(d.nombre)
       );
     } else {
-      this.destinosFiltrados = [...this.destinos];
+      this.destinosFiltrados = this.destinos.filter(d =>
+        this.provinciasNoTuristicas.includes(d.nombre)
+      );
     }
   }
 
@@ -305,14 +317,6 @@ export class IndividualComponent implements OnInit, OnDestroy {
     });
 
     return viajeGroup;
-  }
-
-  validarDocumentosRequeridos(control: AbstractControl): ValidationErrors | null {
-    const documentos = control.value as any[];
-    if (!documentos || documentos.length === 0) {
-      return { documentosRequeridos: true };
-    }
-    return null;
   }
 
   validarComprobantesTransporte(control: AbstractControl): ValidationErrors | null {
