@@ -33,18 +33,22 @@ body {
   border-color: var(--msp-primary) !important;
 }
 
+.print-only {
+  display: none;
+}
+
 /* Botones personalizados */
 .btn-msp {
   background-color: var(--msp-primary);
   border-color: var(--msp-primary);
   color: white;
-  
+
   &:hover {
     background-color: var(--msp-primary-dark);
     border-color: var(--msp-primary-dark);
     color: white;
   }
-  
+
   &:disabled {
     background-color: #6c757d;
     border-color: #6c757d;
@@ -54,7 +58,7 @@ body {
 .btn-outline-msp {
   color: var(--msp-primary);
   border-color: var(--msp-primary);
-  
+
   &:hover {
     background-color: var(--msp-primary);
     color: white;
@@ -96,28 +100,52 @@ body {
 
 /* Estilos de impresión */
 @media print {
-  app-header, app-footer, .btn, .card-header, 
+  app-header, app-footer, .btn, .card-header,
   .no-print, .navbar, footer, form .card:not(.print-card) {
     display: none !important;
   }
-  
+
+  /* En impresión solo debe verse el formato final */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .print-only,
+  .print-only * {
+    visibility: visible !important;
+  }
+
+  .print-only {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  .no-print,
+  .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
   @page {
     size: letter;
     margin: 0.75in 0.5in;
   }
-  
+
   body {
     background-color: white;
     padding: 0 !important;
     margin: 0 !important;
   }
-  
+
   .container-fluid {
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
   }
-  
+
   /* Reset de estilos */
   * {
     background: transparent !important;
@@ -125,8 +153,5 @@ body {
     box-shadow: none !important;
     text-shadow: none !important;
   }
-  
-  .print-only {
-    display: block !important;
-  }
+
 }

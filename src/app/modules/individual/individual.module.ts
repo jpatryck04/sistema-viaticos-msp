@@ -12,6 +12,7 @@ import { ModalModule } from 'ngx-bootstrap/modal';
 // Componentes compartidos (standalone)
 import { SelectorHoraComponent } from '../../shared/components/selector-hora/selector-hora.component';
 import { ModalDocumentosComponent } from '../../shared/components/modal-documentos/modal-documentos.component';
+import { FormatoImpresionComponent } from '../../shared/components/formato-impresion/formato-impresion.component';
 
 @NgModule({
   declarations: [IndividualComponent],
@@ -23,7 +24,8 @@ import { ModalDocumentosComponent } from '../../shared/components/modal-document
     BsDatepickerModule.forRoot(),
     ModalModule.forRoot(),
     SelectorHoraComponent,
-    ModalDocumentosComponent
+    ModalDocumentosComponent,
+    FormatoImpresionComponent
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })

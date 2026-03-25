@@ -1,9 +1,8 @@
-<div class="documento-print" *ngFor="let hoja of [1]">
+<div class="documento-print">
   <!-- Encabezado institucional EXACTAMENTE como el PDF -->
   <div class="encabezado">
-    <div class="logo-container">
-      <!-- Aquí irá el logo cuando lo agregues -->
-      <div class="logo-placeholder">[LOGO MSP]</div>
+    <div class="logo-container" aria-hidden="true">
+      <img src="logo-02.png" width="70" height="70" alt="" class="logo-msp">
     </div>
     <div class="titulos">
       <div class="ministerio">MINISTERIO DE SALUD PUBLICA Y ASISTENCIA SOCIAL</div>
@@ -11,8 +10,7 @@
       <div class="formulario">FORMULARIO DE LIQUIDACION DE VIATICOS</div>
     </div>
     <div class="fecha-emision">
-      <div>FECHA: {{ fechaEmision }}</div>
-      <div>No. ___________</div>
+      <div>FECHA: {{ fechaEmision }}&nbsp;&nbsp;&nbsp;No. ___________</div>
     </div>
   </div>
 
@@ -29,7 +27,7 @@
       </tr>
       <tr>
         <td class="campo">ACTIVIDAD:</td>
-        <td class="valor linea" colspan="3">COMISION DE SERVICIO</td>
+        <td class="valor linea" colspan="3">{{ actividad }}</td>
       </tr>
       <tr>
         <td class="campo">CEDULA:</td>
@@ -48,9 +46,23 @@
 
   <!-- Tabla de viáticos EXACTAMENTE como el PDF -->
   <table class="tabla-viaticos">
+    <colgroup>
+      <col class="c-dia">
+      <col class="c-hora-salida">
+      <col class="c-hora-retorno">
+      <col class="c-destino">
+      <col class="c-turistica">
+      <col class="c-dieta">
+      <col class="c-dieta">
+      <col class="c-dieta">
+      <col class="c-dieta">
+      <col class="c-total-dieta">
+      <col class="c-transporte">
+      <col class="c-total-viaje">
+    </colgroup>
     <thead>
       <tr>
-        <th rowspan="2">DIA</th>
+        <th rowspan="2">FECHA</th>
         <th rowspan="2">HORA DE SALIDA</th>
         <th rowspan="2">HORA DE RETORNO</th>
         <th rowspan="2">LUGARES VISITADOS</th>
@@ -68,19 +80,19 @@
       </tr>
     </thead>
     <tbody>
-      <tr *ngFor="let viaje of viajes">
-        <td>{{ viaje.diaStr }}</td>
-        <td>{{ viaje.horaSalida }}</td>
-        <td>{{ viaje.horaRetorno }}</td>
-        <td>{{ viaje.destino }}</td>
-        <td class="text-center">{{ viaje.esTuristica ? '5%' : '' }}</td>
-        <td class="numero">{{ formatearMonto(viaje.desayuno) }}</td>
-        <td class="numero">{{ formatearMonto(viaje.almuerzo) }}</td>
-        <td class="numero">{{ formatearMonto(viaje.cena) }}</td>
-        <td class="numero">{{ formatearMonto(viaje.alojamiento) }}</td>
-        <td class="numero">{{ formatearMonto(viaje.totalDieta) }}</td>
-        <td class="numero">{{ formatearMonto(viaje.transporte) }}</td>
-        <td class="numero">{{ formatearMonto(viaje.totalGastos) }}</td>
+      <tr *ngFor="let viaje of filasImpresion" class="fila-detalle">
+        <td>{{ viaje?.diaStr || '' }}</td>
+        <td>{{ viaje?.horaSalida || '' }}</td>
+        <td>{{ viaje?.horaRetorno || '' }}</td>
+        <td>{{ viaje?.destino || '' }}</td>
+        <td class="text-center">{{ viaje?.esTuristica ? '5%' : '' }}</td>
+        <td class="numero">{{ viaje ? formatearMonto(viaje.desayuno) : '' }}</td>
+        <td class="numero">{{ viaje ? formatearMonto(viaje.almuerzo) : '' }}</td>
+        <td class="numero">{{ viaje ? formatearMonto(viaje.cena) : '' }}</td>
+        <td class="numero">{{ viaje ? formatearMonto(viaje.alojamiento) : '' }}</td>
+        <td class="numero">{{ viaje ? formatearMonto(viaje.totalDieta) : '' }}</td>
+        <td class="numero">{{ viaje ? formatearMonto(viaje.transporte) : '' }}</td>
+        <td class="numero">{{ viaje ? formatearMonto(viaje.totalGastos) : '' }}</td>
       </tr>
     </tbody>
     <tfoot>
@@ -92,6 +104,16 @@
       </tr>
     </tfoot>
   </table>
+
+  <div class="certificacion">
+    <p><strong>CERTIFICO:</strong> QUE LO ARRIBA INDICADO ES UN DETALLE EXACTO Y VERDADERO DE LOS GASTOS QUE CORRESPONDEN COBRAR POR</p>
+    <p>
+      VIAJES OFICIALES REALIZADO POR MI DURANTE EL MES DE
+      <span class="linea-espacio"></span>
+      DEL AÑO
+      <span class="linea-espacio linea-corta"></span>.
+    </p>
+  </div>
 
   <!-- Línea de firmas EXACTAMENTE como el PDF -->
   <div class="firmas">
@@ -118,8 +140,8 @@
   </div>
 
   <div class="distribucion">
-    <p>ORIGINAL Y DUPLICADO: PARA CONTRALOR Y AUDITOR DE LA NACION.</p>
-    <p>TRIPLICADO Y CUADRUPLICADO: DEPARTAMENTO CONTABILIDAD DEL MINISTERIO.</p>
-    <p>QUINTUPLICADO: PARA EL INTERESADO.</p>
+    <p><strong>ORIGINAL Y DUPLICADO: </strong> PARA CONTRALOR Y AUDITOR DE LA NACION.</p>
+    <p><strong>TRIPLICADO Y CUADRUPLICADO: </strong> DEPARTAMENTO CONTABILIDAD DEL MINISTERIO.</p>
+    <p><strong>QUINTUPLICADO: </strong> PARA EL INTERESADO.</p>
   </div>
 </div>

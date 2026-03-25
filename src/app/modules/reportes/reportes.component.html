@@ -38,15 +38,15 @@
               <option value="">Todos</option>
               <option value="Pagado">Pagado</option>
               <option value="Pendiente">Pendiente</option>
-              <option value="Procesado">Procesado</option>
+              <option value="En Proceso">En Proceso</option>
             </select>
           </div>
           <div class="col-12 text-end">
             <button type="button" class="btn btn-outline-secondary me-2" (click)="limpiarFiltros()">
               <i class="bi bi-eraser me-1"></i> Limpiar
             </button>
-            <button type="button" 
-                    class="btn" 
+            <button type="button"
+                    class="btn"
                     style="background-color: #1F3C73; color: white;"
                     (click)="aplicarFiltros()"
                     [disabled]="cargando">
@@ -99,10 +99,11 @@
               <td class="text-end">{{ formatearMoneda(item.transporte) }}</td>
               <td class="text-end fw-bold" style="color: #1F3C73;">{{ formatearMoneda(item.totalGeneral) }}</td>
               <td class="text-center">
-                <span class="badge" 
+                <span class="badge"
                       [class.bg-success]="item.estado === 'Pagado'"
                       [class.bg-warning]="item.estado === 'Pendiente'"
-                      [class.bg-info]="item.estado === 'Procesado'">
+                      [class.bg-info]="item.estado === 'En Proceso'"
+                      [class.bg-secondary]="item.estado !== 'Pagado' && item.estado !== 'Pendiente' && item.estado !== 'En Proceso'">
                   {{ item.estado }}
                 </span>
               </td>
@@ -118,7 +119,7 @@
             </tr>
           </tfoot>
         </table>
-        
+
         <div *ngIf="datosFiltrados.length === 0" class="text-center py-5">
           <i class="bi bi-inbox fs-1 text-muted"></i>
           <p class="text-muted mt-2">No hay datos para mostrar</p>

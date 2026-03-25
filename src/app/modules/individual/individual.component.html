@@ -1,4 +1,4 @@
-<div class="container-fluid">
+<div class="container-fluid no-print">
   <!-- SECCIÓN 1 Y 2: BÚSQUEDA DE EMPLEADO -->
   <div class="card mb-4">
     <div class="card-header" style="background-color: #1F3C73; color: white;">
@@ -12,8 +12,8 @@
             <label class="form-label fw-bold">Cédula</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
-              <input type="text" 
-                     class="form-control" 
+              <input type="text"
+                     class="form-control"
                      formControlName="cedula"
                      placeholder="000-0000000-0"
                      [class.is-invalid]="busquedaForm.get('cedula')?.invalid && busquedaForm.get('cedula')?.touched"
@@ -24,8 +24,8 @@
             </div>
           </div>
           <div class="col-md-2">
-            <button type="submit" 
-                    class="btn w-100" 
+            <button type="submit"
+                    class="btn w-100"
                     style="background-color: #1F3C73; color: white;"
                     [disabled]="buscando">
               <i class="bi bi-search me-2"></i>
@@ -73,10 +73,17 @@
       <div class="row">
         <div class="col-md-3">
           <label class="form-label fw-bold">Mes de referencia</label>
-          <input type="month" 
+          <input type="month"
                  class="form-control"
                  formControlName="mes"
                  [min]="fechaMinima">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Actividad</label>
+          <input type="text"
+                 class="form-control"
+                 formControlName="actividad"
+                 placeholder="Ej: COMISION DE SERVICIO">
         </div>
       </div>
     </div>
@@ -96,9 +103,9 @@
           <h6 class="mb-0 fw-bold" style="color: #1F3C73;">
             <i class="bi bi-truck me-2"></i>Viaje #{{ i + 1 }}
           </h6>
-          <button *ngIf="viajesArray.length > 1" 
-                  type="button" 
-                  class="btn btn-sm btn-outline-danger" 
+          <button *ngIf="viajesArray.length > 1"
+                  type="button"
+                  class="btn btn-sm btn-outline-danger"
                   (click)="eliminarViaje(i)">
             <i class="bi bi-trash"></i> Eliminar
           </button>
@@ -128,8 +135,8 @@
           <!-- Destino y provincia turística -->
           <div class="col-md-3">
             <div class="form-check mt-4">
-              <input class="form-check-input" 
-                     type="checkbox" 
+              <input class="form-check-input"
+                     type="checkbox"
                      formControlName="esTuristica"
                      id="turistica{{i}}"
                      (change)="filtrarDestinos(viaje.get('esTuristica')?.value)">
@@ -138,12 +145,12 @@
               </label>
             </div>
           </div>
-          
+
           <div class="col-md-4">
             <label class="form-label small fw-bold">Destino</label>
             <select class="form-select form-select-sm" formControlName="idDestino">
               <option value="">Seleccione un destino</option>
-              <option *ngFor="let destino of (viaje.get('esTuristica')?.value ? destinosFiltrados : destinos)" 
+              <option *ngFor="let destino of (viaje.get('esTuristica')?.value ? destinosFiltrados : destinos)"
                       [value]="destino.id">
                 {{ destino.nombre }}
               </option>
@@ -155,7 +162,7 @@
             <label class="form-label small fw-bold">Documentos Adjuntos</label>
             <div class="d-flex gap-2">
               <button type="button" class="btn btn-sm btn-outline-primary" (click)="abrirModalDocumentos(i)">
-                <i class="bi bi-paperclip me-1"></i> 
+                <i class="bi bi-paperclip me-1"></i>
                 {{ viaje.get('documentos')?.value?.length || 0 }} documento(s)
               </button>
               <span *ngIf="viaje.get('documentos')?.value?.length === 0" class="text-danger small align-self-center">
@@ -167,8 +174,8 @@
           <!-- Transporte: ¿Es chofer? -->
           <div class="col-md-3 mt-4">
             <div class="form-check">
-              <input class="form-check-input" 
-                     type="checkbox" 
+              <input class="form-check-input"
+                     type="checkbox"
                      formControlName="esChofer"
                      id="esChofer{{i}}">
               <label class="form-check-label fw-bold" for="esChofer{{i}}">
@@ -176,7 +183,7 @@
               </label>
             </div>
           </div>
-            
+
           <!-- Panel de transporte por día, igual que formato modelo -->
           <div class="col-12 mt-3" *ngIf="viaje.get('esChofer')?.value">
             <div class="card border-secondary">
@@ -303,11 +310,14 @@
       </small>
     </div>
     <div>
+      <button type="button" class="btn btn-outline-primary me-2" (click)="imprimirSoloFormato()" [disabled]="!empleado || resultadosCalculo.length === 0">
+        <i class="bi bi-printer me-1"></i> Imprimir formato
+      </button>
       <button type="button" class="btn btn-outline-secondary me-2" (click)="nuevoRegistro()">
         <i class="bi bi-file-earmark me-1"></i> Nuevo
       </button>
-      <button type="button" 
-              class="btn" 
+      <button type="button"
+              class="btn"
               style="background-color: #1F3C73; color: white;"
               (click)="guardarTodo()"
               [disabled]="guardando || viajesArray.length === 0">
@@ -316,6 +326,16 @@
       </button>
     </div>
   </div>
+</div>
+
+<div #printArea class="print-only" *ngIf="empleado && resultadosCalculo.length > 0">
+  <app-formato-impresion
+    [empleado]="empleado"
+    [viajes]="resultadosCalculo"
+    [mes]="mesImpresion"
+    [anio]="anioImpresion"
+    [actividad]="actividadImpresion">
+  </app-formato-impresion>
 </div>
 
 <!-- Modal de documentos -->
