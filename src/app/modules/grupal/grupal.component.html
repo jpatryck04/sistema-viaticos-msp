@@ -138,7 +138,7 @@
               <td>
                 <select class="form-select form-select-sm" formControlName="idDestino">
                   <option value="">Seleccionar</option>
-                  <option *ngFor="let destino of destinos" [value]="destino.id">
+                  <option *ngFor="let destino of getDestinosPorTipo(!!fila.get('esTuristica')?.value)" [value]="destino.id">
                     {{ destino.nombre }}
                   </option>
                 </select>

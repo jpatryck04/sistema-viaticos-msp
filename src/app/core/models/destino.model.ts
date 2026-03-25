@@ -1,6 +1,6 @@
 /**
  * 🌍 MODELO DE DESTINO
- * 
+ *
  * Interfaz que define los destinos disponibles para viajes.
  * Incluye propiedades para determinar si es turístico y cálculo de costos.
  */
@@ -8,19 +8,19 @@
 export interface Destino {
   /** Identificador único del destino */
   id: number;
-  
+
   /** Nombre del destino (ciudad, provincia) */
   nombre: string;
-  
+
   /** Tipo de destino: turístico o normal */
   tipo: 'turistica' | 'normal';
-  
+
   /** Costo aproximado de transporte al destino (RD$) */
   costoTransporte: number;
-  
+
   /** Distancia en kilómetros desde capital */
   distanciaKm: number;
-  
+
   /** Indica si el destino está disponible */
   activo: boolean;
 }
@@ -35,4 +35,35 @@ export const PROVINCIAS_TURISTICAS: string[] = [
   'Puerto Plata',
   'Samaná',
   'Pedernales'
+];
+
+/**
+ * Lista de provincias no turísticas (normales)
+ */
+export const PROVINCIAS_NO_TURISTICAS: string[] = [
+  'Azua',
+  'Bahoruco',
+  'Barahona',
+  'Dajabón',
+  'Duarte',
+  'Elías Piña',
+  'El Seibo',
+  'Espaillat',
+  'Hato Mayor',
+  'Hermanas Mirabal',
+  'Independencia',
+  'La Vega',
+  'María Trinidad Sánchez',
+  'Monseñor Nouel',
+  'Monte Cristi',
+  'Monte Plata',
+  'Peravia',
+  'Sánchez Ramírez',
+  'San Cristóbal',
+  'San José de Ocoa',
+  'San Juan',
+  'San Pedro de Macorís',
+  'Santiago',
+  'Santiago Rodríguez',
+  'Valverde'
 ];

@@ -79,11 +79,15 @@
                  [min]="fechaMinima">
         </div>
         <div class="col-md-6">
-          <label class="form-label fw-bold">Actividad</label>
+          <label class="form-label fw-bold">Actividad <span class="text-danger">*</span></label>
           <input type="text"
                  class="form-control"
                  formControlName="actividad"
+                 [class.is-invalid]="viajesForm.get('actividad')?.invalid && viajesForm.get('actividad')?.touched"
                  placeholder="Ej: COMISION DE SERVICIO">
+          <div class="invalid-feedback" *ngIf="viajesForm.get('actividad')?.invalid && viajesForm.get('actividad')?.touched">
+            La actividad es obligatoria.
+          </div>
         </div>
       </div>
     </div>
@@ -150,7 +154,7 @@
             <label class="form-label small fw-bold">Destino</label>
             <select class="form-select form-select-sm" formControlName="idDestino">
               <option value="">Seleccione un destino</option>
-              <option *ngFor="let destino of (viaje.get('esTuristica')?.value ? destinosFiltrados : destinos)"
+              <option *ngFor="let destino of destinosFiltrados"
                       [value]="destino.id">
                 {{ destino.nombre }}
               </option>
@@ -165,9 +169,6 @@
                 <i class="bi bi-paperclip me-1"></i>
                 {{ viaje.get('documentos')?.value?.length || 0 }} documento(s)
               </button>
-              <span *ngIf="viaje.get('documentos')?.value?.length === 0" class="text-danger small align-self-center">
-                * Requerido
-              </span>
             </div>
           </div>
 

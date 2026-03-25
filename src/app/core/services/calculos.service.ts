@@ -134,7 +134,8 @@ export class CalculosService {
     nombreDestino: string,
     esTuristica: boolean,
     costoTransporte: number = 0,
-    esChofer: boolean = false
+    esChofer: boolean = false,
+    aplicarReglaExcepcionalChofer: boolean = false
   ): CalculoDietaPorDia[] {
     const resultados: CalculoDietaPorDia[] = [];
 
@@ -157,7 +158,9 @@ export class CalculosService {
       let almuerzo = 0;
       let cena = 0;
       let alojamiento = 0;
-      const baseAlojamiento = esChofer ? this.ASIGNACION_TECNICO : asignacionDiaria;
+      const baseAlojamiento = (aplicarReglaExcepcionalChofer && esChofer)
+        ? this.ASIGNACION_TECNICO
+        : asignacionDiaria;
 
       if (esIntermedio) {
         desayuno = asignacionDiaria * this.PORC_DESAYUNO;

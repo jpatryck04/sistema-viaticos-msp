@@ -11,7 +11,7 @@ import { ValidacionesService } from '../../core/services/validaciones.service';
 import { DocumentosService } from '../../core/services/documentos.service';
 
 import { Empleado } from '../../core/models/empleado.model';
-import { Destino, PROVINCIAS_TURISTICAS } from '../../core/models/destino.model';
+import { Destino, PROVINCIAS_NO_TURISTICAS, PROVINCIAS_TURISTICAS } from '../../core/models/destino.model';
 import { Documento } from '../../core/models/documento.model';
 import { CalculoDietaPorDia, Viaje } from '../../core/models/viatico.model';
 import { ModalDocumentosComponent } from '../../shared/components/modal-documentos/modal-documentos.component';
@@ -41,6 +41,7 @@ export class GrupalComponent implements OnInit, OnDestroy {
   // Datos
   destinos: Destino[] = [];
   provinciasTuristicas = PROVINCIAS_TURISTICAS;
+  provinciasNoTuristicas = PROVINCIAS_NO_TURISTICAS;
   empleadosCache: Map<string, Empleado> = new Map();
 
   // Estados
@@ -267,14 +268,6 @@ export class GrupalComponent implements OnInit, OnDestroy {
     this.construirHojasImpresion();
   }
 
-  validarDocumentosRequeridos(control: AbstractControl): ValidationErrors | null {
-    const documentos = control.value as any[];
-    if (!documentos || documentos.length === 0) {
-      return { documentosRequeridos: true };
-    }
-    return null;
-  }
-
   validarComprobantesTransporte(control: AbstractControl): ValidationErrors | null {
     // Este validador solo es llamado si esChofer es true
     const comprobantes = control.value as any[];
@@ -387,6 +380,11 @@ export class GrupalComponent implements OnInit, OnDestroy {
   // ============================================
   // CÁLCULOS
   // ============================================
+  getDestinosPorTipo(esTuristica: boolean): Destino[] {
+    const lista = esTuristica ? this.provinciasTuristicas : this.provinciasNoTuristicas;
+    return this.destinos.filter(d => lista.includes(d.nombre));
+  }
+
   calcularTotalFila(fila: FormGroup): void {
     const asignacionDiaria = fila.get('asignacionDiaria')?.value;
     const fechaSalida = fila.get('fechaSalida')?.value;
@@ -515,6 +513,15 @@ export class GrupalComponent implements OnInit, OnDestroy {
       .map((n) => n.outerHTML)
       .join('\n');
 
+    // Cada app-formato-impresion en su propia página usando inline styles
+    const formatos = Array.from(elemento.querySelectorAll('app-formato-impresion'));
+    const paginasHTML = formatos.map((el, i) => {
+      const salto = i === 0
+        ? ''
+        : ' style="page-break-before:always;break-before:page;display:block;"';
+      return `<div${salto}>${el.innerHTML}</div>`;
+    }).join('\n');
+
     ventana.document.open();
     ventana.document.write(`<!doctype html>
 <html>
@@ -529,7 +536,7 @@ export class GrupalComponent implements OnInit, OnDestroy {
     </style>
   </head>
   <body>
-    <div class="print-only">${elemento.innerHTML}</div>
+    <div class="print-only">${paginasHTML}</div>
   </body>
 </html>`);
     ventana.document.close();
