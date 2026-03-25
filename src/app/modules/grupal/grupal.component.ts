@@ -1,8 +1,9 @@
-import { Component, OnInit, ViewChild, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ChangeDetectorRef, ChangeDetectionStrategy, ElementRef } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 import { BsDatepickerConfig } from 'ngx-bootstrap/datepicker';
 import * as XLSX from 'xlsx';
+import { forkJoin } from 'rxjs';
 
 import { ApiService } from '../../core/services/api.service';
 import { CalculosService } from '../../core/services/calculos.service';
@@ -12,8 +13,16 @@ import { DocumentosService } from '../../core/services/documentos.service';
 import { Empleado } from '../../core/models/empleado.model';
 import { Destino, PROVINCIAS_TURISTICAS } from '../../core/models/destino.model';
 import { Documento } from '../../core/models/documento.model';
-import { CalculoDietaPorDia } from '../../core/models/viatico.model';
+import { CalculoDietaPorDia, Viaje } from '../../core/models/viatico.model';
 import { ModalDocumentosComponent } from '../../shared/components/modal-documentos/modal-documentos.component';
+
+interface HojaImpresionGrupal {
+  empleado: Empleado;
+  viajes: CalculoDietaPorDia[];
+  mes: string;
+  anio: number;
+  actividad: string;
+}
 
 @Component({
   selector: 'app-grupal',
@@ -21,24 +30,41 @@ import { ModalDocumentosComponent } from '../../shared/components/modal-document
   templateUrl: './grupal.component.html',
   styleUrls: ['./grupal.component.scss']
 })
-export class GrupalComponent implements OnInit {
+export class GrupalComponent implements OnInit, OnDestroy {
   @ViewChild('modalDocumentos') modalDocumentos!: ModalDocumentosComponent;
-  
+  @ViewChild('printArea') printArea?: ElementRef<HTMLElement>;
+
   // Formularios
   filtrosForm: FormGroup;
   viajesForm: FormGroup;
-  
+
   // Datos
   destinos: Destino[] = [];
   provinciasTuristicas = PROVINCIAS_TURISTICAS;
   empleadosCache: Map<string, Empleado> = new Map();
-  
+
   // Estados
   guardando = false;
   exportando = false;
   filaActualIndex = 0;
   cedulasEnUso: Set<string> = new Set();
-  
+  hojasImpresion: HojaImpresionGrupal[] = [];
+
+  // Transporte por fila (keyed by row UUID)
+  transportesPorFila: Record<string, Array<{ fechaISO: string; monto: number; evidencias: Documento[] }>> = {};
+  transporteDiaSeleccionadoPorFila: Record<string, string> = {};
+  transporteMontoTempPorFila: Record<string, number> = {};
+  transporteEvidenciasTempPorFila: Record<string, Documento[]> = {};
+  private readonly handleKeydown = (event: KeyboardEvent): void => {
+    const isPrintShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p';
+    if (!isPrintShortcut) {
+      return;
+    }
+
+    event.preventDefault();
+    this.imprimirFormatos();
+  };
+
   // Opciones de fecha
   datePickerConfig: Partial<BsDatepickerConfig> = {
     dateInputFormat: 'DD/MM/YYYY',
@@ -58,9 +84,10 @@ export class GrupalComponent implements OnInit {
     // Formulario de filtros
     this.filtrosForm = this.fb.group({
       mes: ['', [Validators.required, this.validacionesService.validadorMesActual()]],
-      departamento: ['']
+      departamento: [''],
+      actividad: ['COMISION DE SERVICIO', [Validators.required]]
     });
-    
+
     // Formulario de viajes
     this.viajesForm = this.fb.group({
       viajes: this.fb.array([])
@@ -70,15 +97,54 @@ export class GrupalComponent implements OnInit {
   ngOnInit(): void {
     this.cargarDestinos();
     this.agregarFila(); // Agregar primera fila vacía
+    window.addEventListener('keydown', this.handleKeydown);
+  }
+
+  ngOnDestroy(): void {
+    window.removeEventListener('keydown', this.handleKeydown);
+  }
+
+  private normalizeToISO(value: string | Date): string {
+    if (!value) return '';
+    if (value instanceof Date) return this.toISODate(value);
+    let x = String(value).trim();
+    if (x.includes('T')) x = x.split('T')[0];
+    if (x.includes('/')) {
+      const parts = x.split('/');
+      if (parts.length === 3) {
+        const [dd, mm, yyyy] = parts;
+        return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+      }
+    }
+    return x;
+  }
+
+  public toISODate(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   /**
    * Parsea una fecha en formato ISO (YYYY-MM-DD) como fecha local,
    * evitando problemas de zona horaria UTC
    */
-  private parseDateLocal(dateString: string): Date {
-    const [year, month, day] = dateString.split('-').map(Number);
+  public parseDateLocal(dateString: string | Date): Date {
+    const iso = this.normalizeToISO(dateString);
+    const [year, month, day] = iso.split('-').map(Number);
     return new Date(year, month - 1, day);
+  }
+
+  public enumerarDiasISO(desde: Date, hasta: Date): string[] {
+    const dias: string[] = [];
+    const actual = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+    const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+    while (actual.getTime() <= fin.getTime()) {
+      dias.push(this.toISODate(actual));
+      actual.setDate(actual.getDate() + 1);
+    }
+    return dias;
   }
 
   // Getters
@@ -108,7 +174,7 @@ export class GrupalComponent implements OnInit {
   // ============================================
   crearFilaFormGroup(): FormGroup {
     const fechaHoy = new Date().toISOString().split('T')[0];
-    
+
     const fila = this.fb.group({
       id: [crypto.randomUUID()], // Identificador único para la fila
       cedula: ['', [Validators.required, this.validacionesService.validadorCedula()]],
@@ -127,25 +193,26 @@ export class GrupalComponent implements OnInit {
       costoTransporte: [0, [Validators.required, Validators.min(0)]],
       comprobantesTransporte: [[], [this.validarComprobantesTransporte.bind(this)]],
       totalCalculado: [0],
-      documentos: [[], [this.validarDocumentosRequeridos.bind(this)]],
+      transporte: [0],
+      documentos: [[]],
       empleadoValido: [false],
       fechaValida: [true]
     }, {
       validators: (control: AbstractControl) => {
         const salida = control.get('fechaSalida')?.value;
         const retorno = control.get('fechaRetorno')?.value;
-        
+
         if (!salida || !retorno) {
           return null;
         }
-        
+
         const fechaSalida = this.parseDateLocal(salida);
         const fechaRetorno = this.parseDateLocal(retorno);
-        
+
         if (fechaRetorno < fechaSalida) {
           return { fechaRetornoMenor: true };
         }
-        
+
         return null;
       }
     });
@@ -154,19 +221,27 @@ export class GrupalComponent implements OnInit {
     fila.get('esChofer')?.valueChanges.subscribe((esChofer) => {
       const comprobantesControl = fila.get('comprobantesTransporte');
       const costoControl = fila.get('costoTransporte');
-      
+
       if (esChofer) {
-        // Si es chofer: requiere comprobantes y costo
-        comprobantesControl?.setValidators([this.validarComprobantesTransporte.bind(this)]);
-        costoControl?.setValidators([Validators.required, Validators.min(0)]);
+        // Chofer: C. Transporte es opcional (fallback por día)
+        comprobantesControl?.setValidators([]);
+        costoControl?.setValidators([Validators.min(0)]);
       } else {
-        // Si NO es chofer: limpiar valores
+        // No es chofer: limpiar valores y validadores
         costoControl?.setValue(0);
         comprobantesControl?.setValue([] as any);
         comprobantesControl?.setValidators([]);
         costoControl?.setValidators([]);
+        // Limpiar transportes del día para esta fila
+        const filaId = fila.get('id')?.value as string;
+        if (filaId) {
+          this.transportesPorFila[filaId] = [];
+          this.transporteDiaSeleccionadoPorFila[filaId] = '';
+          this.transporteMontoTempPorFila[filaId] = 0;
+          this.transporteEvidenciasTempPorFila[filaId] = [];
+        }
       }
-      
+
       comprobantesControl?.updateValueAndValidity({ emitEvent: false });
       costoControl?.updateValueAndValidity({ emitEvent: false });
     });
@@ -189,6 +264,7 @@ export class GrupalComponent implements OnInit {
   agregarFila(): void {
     const nuevaFila = this.crearFilaFormGroup();
     this.viajesArray.push(nuevaFila);
+    this.construirHojasImpresion();
   }
 
   validarDocumentosRequeridos(control: AbstractControl): ValidationErrors | null {
@@ -211,17 +287,28 @@ export class GrupalComponent implements OnInit {
   eliminarFila(index: number): void {
     const fila = this.viajesArray.at(index);
     const cedula = fila.get('cedula')?.value;
-    
+    const filaId = fila.get('id')?.value as string;
+
     // Eliminar cédula del set de usadas
     if (cedula) {
       this.cedulasEnUso.delete(cedula);
     }
-    
+
+    // Limpiar transportes de esta fila
+    if (filaId) {
+      delete this.transportesPorFila[filaId];
+      delete this.transporteDiaSeleccionadoPorFila[filaId];
+      delete this.transporteMontoTempPorFila[filaId];
+      delete this.transporteEvidenciasTempPorFila[filaId];
+    }
+
     this.viajesArray.removeAt(index);
-    
+
     if (this.viajesArray.length === 0) {
       this.agregarFila();
     }
+
+    this.construirHojasImpresion();
   }
 
   // ============================================
@@ -259,6 +346,8 @@ export class GrupalComponent implements OnInit {
     // Buscar en API
     this.apiService.getEmpleado(cedula).subscribe({
       next: (empleado) => {
+        // Asignar diaria según tarifas MAP (Resolución 173-2025)
+        empleado.asignacionDiaria = this.calculosService.getAsignacionDiariaMAP(empleado.cargo);
         this.empleadosCache.set(cedula, empleado);
         this.cargarEmpleadoEnFila(fila, empleado);
       },
@@ -289,8 +378,9 @@ export class GrupalComponent implements OnInit {
       asignacionDiaria: empleado.asignacionDiaria,
       empleadoValido: true
     }, { emitEvent: false });
-    
+
     // Notificar a Angular que la vista debe ser verificada
+    this.construirHojasImpresion();
     this.cdr.markForCheck();
   }
 
@@ -305,6 +395,9 @@ export class GrupalComponent implements OnInit {
     const horaRetorno = fila.get('horaRetorno')?.value;
     const idDestino = fila.get('idDestino')?.value;
     const esTuristica = fila.get('esTuristica')?.value;
+    const esChofer = fila.get('esChofer')?.value;
+    const costoTransporte = Number(fila.get('costoTransporte')?.value) || 0;
+    const filaId = fila.get('id')?.value as string;
 
     if (!asignacionDiaria || !fechaSalida || !fechaRetorno || !idDestino) {
       return;
@@ -316,6 +409,7 @@ export class GrupalComponent implements OnInit {
     // Guardar nombre del destino
     fila.patchValue({ nombreDestino: destino.nombre }, { emitEvent: false });
 
+    // Calcular base con transport=0 (se superpone con transporte por día)
     const resultados = this.calculosService.calcularViaticosPorViaje(
       asignacionDiaria,
       fechaSalida,
@@ -324,12 +418,209 @@ export class GrupalComponent implements OnInit {
       horaRetorno,
       destino.nombre,
       esTuristica,
-      destino.costoTransporte
+      0,
+      esChofer
     );
 
-    const total = resultados.reduce((sum, item) => sum + item.totalGastos, 0);
-    fila.patchValue({ totalCalculado: total }, { emitEvent: false });
+    // Aplicar transporte por día (igual que módulo individual)
+    const transportes = filaId ? (this.transportesPorFila[filaId] ?? []) : [];
+    const mapaTransporte = new Map<string, number>();
+    transportes.forEach(t => mapaTransporte.set(this.normalizeToISO(t.fechaISO), t.monto));
+
+    let totalTransporte = 0;
+    const resultadosActualizados = resultados.map(r => {
+      const fechaKey = this.normalizeToISO(this.toISODate(r.dia));
+      const montoTransporte = mapaTransporte.get(fechaKey) ?? 0;
+      const transporteFinal = montoTransporte || (esChofer ? costoTransporte : 0);
+      totalTransporte += transporteFinal;
+      const totalGastos = r.totalGastos - r.transporte + transporteFinal;
+      return { ...r, transporte: transporteFinal, totalGastos };
+    });
+
+    const total = resultadosActualizados.reduce((sum, item) => sum + item.totalGastos, 0);
+    fila.patchValue({ totalCalculado: total, transporte: totalTransporte }, { emitEvent: false });
+    this.construirHojasImpresion();
     this.cdr.markForCheck();
+  }
+
+  private obtenerNombreMes(fecha: Date): string {
+    return fecha.toLocaleDateString('es-DO', { month: 'long' }).toUpperCase();
+  }
+
+  private construirHojaImpresionDesdeFila(fila: FormGroup): HojaImpresionGrupal | null {
+    const viaje = fila.value;
+    const cedula = viaje.cedula as string;
+    const empleado = this.empleadosCache.get(cedula);
+    if (!empleado) {
+      return null;
+    }
+
+    const destino = this.destinos.find((d) => d.id === Number(viaje.idDestino));
+    if (!destino) {
+      return null;
+    }
+
+    const fechaSalida = this.parseDateLocal(viaje.fechaSalida);
+
+    // Aplicar transporte por día (igual que calcularTotalFila)
+    const filaId = viaje.id as string;
+    const transportes = filaId ? (this.transportesPorFila[filaId] ?? []) : [];
+    const mapaTransporte = new Map<string, number>();
+    transportes.forEach(t => mapaTransporte.set(this.normalizeToISO(t.fechaISO), t.monto));
+    const costoTran = viaje.esChofer ? (Number(viaje.costoTransporte) || 0) : 0;
+
+    const resultados = this.calculosService.calcularViaticosPorViaje(
+      empleado.asignacionDiaria,
+      viaje.fechaSalida,
+      viaje.horaSalida,
+      viaje.fechaRetorno,
+      viaje.horaRetorno,
+      destino.nombre,
+      viaje.esTuristica,
+      0,
+      viaje.esChofer
+    );
+
+    const viajes = resultados.map(r => {
+      const fechaKey = this.normalizeToISO(this.toISODate(r.dia));
+      const montoTransporte = mapaTransporte.get(fechaKey) ?? 0;
+      const transporteFinal = montoTransporte || costoTran;
+      const totalGastos = r.totalGastos - r.transporte + transporteFinal;
+      return { ...r, transporte: transporteFinal, totalGastos };
+    });
+
+    return {
+      empleado,
+      viajes,
+      mes: this.obtenerNombreMes(fechaSalida),
+      anio: fechaSalida.getFullYear(),
+      actividad: (this.filtrosForm.get('actividad')?.value || 'COMISION DE SERVICIO').toString().trim()
+    };
+  }
+
+  private construirHojasImpresion(): void {
+    this.hojasImpresion = this.viajesArray.controls
+      .map((control) => this.construirHojaImpresionDesdeFila(control as FormGroup))
+      .filter((hoja): hoja is HojaImpresionGrupal => hoja !== null);
+  }
+
+  private imprimirContenido(elemento: HTMLElement): void {
+    const ventana = window.open('', '_blank', 'width=1024,height=768');
+    if (!ventana) {
+      this.toastr.warning('El navegador bloqueó la ventana de impresión', 'Impresión');
+      return;
+    }
+
+    const estilos = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((n) => n.outerHTML)
+      .join('\n');
+
+    ventana.document.open();
+    ventana.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <base href="${document.baseURI}" />
+    ${estilos}
+    <style>
+      body { margin: 0; padding: 0; background: #fff; }
+      .print-only { display: block !important; }
+      .no-print { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="print-only">${elemento.innerHTML}</div>
+  </body>
+</html>`);
+    ventana.document.close();
+    ventana.focus();
+    setTimeout(() => {
+      ventana.print();
+      ventana.close();
+    }, 250);
+  }
+
+  imprimirFormatos(): void {
+    this.construirHojasImpresion();
+
+    if (this.hojasImpresion.length === 0 || !this.printArea?.nativeElement) {
+      this.toastr.warning('No hay empleados válidos para imprimir', 'Impresión');
+      return;
+    }
+
+    this.imprimirContenido(this.printArea.nativeElement);
+  }
+
+  // ============================================
+  // TRANSPORTE POR DÍA (igual que módulo individual)
+  // ============================================
+  guardarTransporteDeFila(index: number): void {
+    const fila = this.viajesArray.at(index) as FormGroup;
+    const filaId = fila.get('id')?.value as string;
+    const fechaSalida = fila.get('fechaSalida')?.value;
+    const fechaRetorno = fila.get('fechaRetorno')?.value;
+
+    if (!fechaSalida || !fechaRetorno) {
+      this.toastr.warning('Defina un rango de fechas válido primero.', 'Transporte');
+      return;
+    }
+
+    const diaSeleccionado = this.normalizeToISO(this.transporteDiaSeleccionadoPorFila[filaId] || '');
+    if (!diaSeleccionado) {
+      this.toastr.warning('Seleccione un día válido del rango de viaje.', 'Transporte');
+      return;
+    }
+
+    const dias = this.enumerarDiasISO(this.parseDateLocal(fechaSalida), this.parseDateLocal(fechaRetorno));
+    if (!dias.includes(diaSeleccionado)) {
+      this.toastr.warning('El día seleccionado no forma parte del viaje.', 'Transporte');
+      return;
+    }
+
+    const monto = Number(this.transporteMontoTempPorFila[filaId] ?? 0);
+    if (monto <= 0) {
+      this.toastr.warning('Ingrese un monto de transporte mayor a 0.', 'Transporte');
+      return;
+    }
+
+    const lista = this.transportesPorFila[filaId] ?? [];
+    const existing = lista.find(t => t.fechaISO === diaSeleccionado);
+    if (existing) {
+      existing.monto = monto;
+      existing.evidencias = [...existing.evidencias, ...(this.transporteEvidenciasTempPorFila[filaId] || [])];
+    } else {
+      lista.push({ fechaISO: diaSeleccionado, monto, evidencias: [...(this.transporteEvidenciasTempPorFila[filaId] || [])] });
+    }
+    this.transportesPorFila[filaId] = lista.sort((a, b) => a.fechaISO.localeCompare(b.fechaISO));
+    this.transporteMontoTempPorFila[filaId] = 0;
+    this.transporteEvidenciasTempPorFila[filaId] = [];
+
+    // Actualizar el campo transporte inmediatamente (suma simple)
+    const simpleSum = this.transportesPorFila[filaId].reduce((sum, t) => sum + t.monto, 0);
+    fila.patchValue({ transporte: simpleSum }, { emitEvent: false });
+    this.cdr.markForCheck();
+
+    this.toastr.success('Transporte agregado correctamente', 'Transporte');
+    this.calcularTotalFila(fila);
+  }
+
+  quitarTransporteDeFila(index: number, fechaISO: string): void {
+    const fila = this.viajesArray.at(index) as FormGroup;
+    const filaId = fila.get('id')?.value as string;
+    const lista = this.transportesPorFila[filaId] ?? [];
+    this.transportesPorFila[filaId] = lista.filter(t => t.fechaISO !== fechaISO);
+    const simpleSum = this.transportesPorFila[filaId].reduce((sum, t) => sum + t.monto, 0);
+    fila.patchValue({ transporte: simpleSum }, { emitEvent: false });
+    this.cdr.markForCheck();
+    this.calcularTotalFila(fila);
+  }
+
+  onTransporteFilesChangeFila(event: Event, filaId: string): void {
+    const input = event.target as HTMLInputElement;
+    const archivos = input.files;
+    this.transporteEvidenciasTempPorFila[filaId] = archivos
+      ? Array.from(archivos).map(file => ({ nombre: file.name, tipo: file.type || 'archivo', tamano: file.size }))
+      : [] as any;
   }
 
   // ============================================
@@ -345,7 +636,7 @@ export class GrupalComponent implements OnInit {
   onDocumentosSeleccionados(documentos: Documento[]): void {
     const fila = this.viajesArray.at(this.filaActualIndex);
     fila.patchValue({ documentos });
-    
+
     if (documentos.length > 0) {
       this.toastr.success(`${documentos.length} documento(s) adjuntado(s)`, 'Éxito');
     }
@@ -364,7 +655,7 @@ export class GrupalComponent implements OnInit {
   onComprobantesSeleccionados(comprobantes: Documento[]): void {
     const fila = this.viajesArray.at(this.filaActualIndex);
     fila.patchValue({ comprobantesTransporte: comprobantes });
-    
+
     if (comprobantes.length > 0) {
       this.toastr.success(`${comprobantes.length} comprobante(s) de transporte adjuntado(s)`, 'Éxito');
     }
@@ -382,11 +673,11 @@ export class GrupalComponent implements OnInit {
 
     // Validar cada fila
     let filasValidas = true;
-    const viajesPayload: any[] = [];
+    const viajesPorEmpleado: Partial<Viaje>[][] = [];
 
     for (let i = 0; i < this.viajesArray.length; i++) {
       const fila = this.viajesArray.at(i);
-      
+
       // Validar que la fila tenga datos
       if (!fila.get('cedula')?.value) {
         this.toastr.warning(`Fila #${i + 1}: Cédula requerida`, 'Validación');
@@ -408,18 +699,10 @@ export class GrupalComponent implements OnInit {
         break;
       }
 
-      // Validar documentos
-      const documentos = fila.get('documentos')?.value;
-      if (!documentos || documentos.length === 0) {
-        this.toastr.warning(`Fila #${i + 1}: Debe adjuntar al menos un documento`, 'Validación');
-        filasValidas = false;
-        break;
-      }
-
       // Construir payload
       const viaje = fila.value;
       const fechaViaje = this.parseDateLocal(viaje.fechaSalida);
-      viajesPayload.push({
+      viajesPorEmpleado.push([{
         cedula: viaje.cedula,
         mes: fechaViaje.getMonth() + 1,
         anio: fechaViaje.getFullYear(),
@@ -441,16 +724,29 @@ export class GrupalComponent implements OnInit {
           tipo: doc.tipo,
           tamano: doc.tamano
         }))
-      });
+      }]);
     }
 
     if (!filasValidas) return;
 
+    if (viajesPorEmpleado.length === 0) {
+      this.toastr.warning('No hay empleados listos para guardar', 'Validación');
+      return;
+    }
+
     this.guardando = true;
-    
-    this.apiService.guardarViaticosGrupal(viajesPayload).subscribe({
-      next: (response) => {
-        this.toastr.success(response.mensaje, 'Guardado exitoso');
+
+    const guardados = viajesPorEmpleado.map((payload) =>
+      this.apiService.guardarViaticosIndividual(payload)
+    );
+
+    forkJoin(guardados).subscribe({
+      next: (responses) => {
+        const totalIds = responses.reduce((sum, r) => sum + (r.ids?.length || 0), 0);
+        this.toastr.success(
+          `Se registraron ${responses.length} viáticos independientes (${totalIds} ID generados)`,
+          'Guardado exitoso'
+        );
         this.limpiarFormulario();
         this.cdr.markForCheck();
       },
@@ -477,7 +773,7 @@ export class GrupalComponent implements OnInit {
     try {
       // Preparar datos para Excel
       const datos: any[] = [];
-      
+
       this.viajesArray.controls.forEach((fila, index) => {
         const viaje = fila.value;
         datos.push({
@@ -500,7 +796,7 @@ export class GrupalComponent implements OnInit {
       // Crear libro de Excel
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(datos);
-      
+
       // Ajustar ancho de columnas
       const colWidths = [
         { wch: 5 },   // #
@@ -528,7 +824,7 @@ export class GrupalComponent implements OnInit {
 
       // Descargar archivo
       XLSX.writeFile(wb, nombreArchivo);
-      
+
       this.toastr.success('Archivo Excel generado correctamente', 'Exportación exitosa');
     } catch (error) {
       console.error('Error al exportar:', error);
@@ -541,6 +837,11 @@ export class GrupalComponent implements OnInit {
   limpiarFormulario(): void {
     this.viajesArray.clear();
     this.cedulasEnUso.clear();
+    this.hojasImpresion = [];
+    this.transportesPorFila = {};
+    this.transporteDiaSeleccionadoPorFila = {};
+    this.transporteMontoTempPorFila = {};
+    this.transporteEvidenciasTempPorFila = {};
     this.agregarFila();
   }
 
@@ -570,13 +871,13 @@ export class GrupalComponent implements OnInit {
   onKeyUp(event: KeyboardEvent, index: number): void {
     const target = event.target as HTMLInputElement;
     const cedula = target.value;
-    
+
     // Si presionó TAB, intentar cargar empleado
     if (event.key === 'Tab' && cedula && cedula.length >= 13) {
       event.preventDefault();
       const fila = this.viajesArray.at(index) as FormGroup;
       this.onCedulaChange(fila, cedula);
-      
+
       // Mover al siguiente campo después de que se cargue el empleado
       setTimeout(() => {
         const nextInput = (event.target as HTMLElement).parentElement?.nextElementSibling?.querySelector('input');
@@ -585,7 +886,7 @@ export class GrupalComponent implements OnInit {
         }
       }, 200);
     }
-    
+
     // Si es la última fila y se está escribiendo, agregar nueva fila
     if (index === this.viajesArray.length - 1 && cedula.length > 0) {
       this.agregarFila();

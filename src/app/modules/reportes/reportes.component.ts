@@ -20,6 +20,12 @@ interface ReporteItem {
   estado: string;
 }
 
+type ReporteRaw = Partial<ReporteItem> & {
+  costoTransporte?: number | string;
+  totalTransporte?: number | string;
+  transportePorDia?: Array<{ monto?: number | string }>;
+};
+
 function toNumber(value: number | string | undefined | null): number {
   if (value === undefined || value === null || value === '') {
     return 0;
@@ -32,6 +38,33 @@ function toNumber(value: number | string | undefined | null): number {
   const parsed = Number(String(value).replace(/[^0-9.-]+/g, ''));
   return Number.isNaN(parsed) ? 0 : parsed;
 }
+
+function normalizarEstado(estado: unknown): string {
+  const valor = String(estado ?? '').trim();
+  if (!valor) {
+    return 'Pendiente';
+  }
+
+  const canonico = valor.toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+
+  if (canonico === 'pagado') {
+    return 'Pagado';
+  }
+
+  if (canonico === 'pendiente') {
+    return 'Pendiente';
+  }
+
+  if (canonico === 'procesado' || canonico === 'en proceso') {
+    return 'En Proceso';
+  }
+
+  return valor;
+}
+
+function ordenarPorIdAsc(items: ReporteItem[]): ReporteItem[] {
+  return [...items].sort((a, b) => a.id - b.id);
+}
 @Component({
   selector: 'app-reportes',
   standalone: false,
@@ -41,7 +74,7 @@ function toNumber(value: number | string | undefined | null): number {
 export class ReportesComponent implements OnInit, OnDestroy {
   filtrosForm: FormGroup;
   private subscriptionReportes?: Subscription;
-  
+
   // Array inicialmente vacío - los datos se cargan desde el API
   datosReporte: ReporteItem[] = [];
   datosFiltrados: ReporteItem[] = [];
@@ -75,18 +108,29 @@ export class ReportesComponent implements OnInit, OnDestroy {
     this.subscriptionReportes?.unsubscribe();
   }
 
-  private normalizarReporteItem(item: any): ReporteItem {
-    const totalDieta = toNumber(item.totalDieta);
-
-    // Preferir el campo explícito de transporte
+  private normalizarTransporte(item: ReporteRaw): number {
     let transporte = toNumber(item.transporte);
 
-    // Si no viene transporte directo, buscar en transportePorDia (sumatoria)
+    if (transporte === 0) {
+      transporte = toNumber(item.costoTransporte);
+    }
+
+    if (transporte === 0) {
+      transporte = toNumber(item.totalTransporte);
+    }
+
     if (transporte === 0 && Array.isArray(item.transportePorDia)) {
       transporte = item.transportePorDia
-        .map((t: any) => toNumber(t?.monto))
-        .reduce((sum: number, v: number) => sum + v, 0);
+        .map((t) => toNumber(t?.monto))
+        .reduce((sum, v) => sum + v, 0);
     }
+
+    return transporte;
+  }
+
+  private normalizarReporteItem(item: ReporteRaw): ReporteItem {
+    const totalDieta = toNumber(item.totalDieta);
+    const transporte = this.normalizarTransporte(item);
 
     const totalGeneral = toNumber(item.totalGeneral) || (totalDieta + transporte);
 
@@ -99,16 +143,25 @@ export class ReportesComponent implements OnInit, OnDestroy {
       totalDieta,
       transporte,
       totalGeneral,
-      estado: item.estado || 'Pendiente'
+      estado: normalizarEstado(item.estado)
     };
+  }
+
+  private mapearYOrdenarReportes(datos: unknown): ReporteItem[] {
+    if (!Array.isArray(datos)) {
+      return [];
+    }
+
+    const normalizados = datos.map((item) => this.normalizarReporteItem(item as ReporteRaw));
+    return ordenarPorIdAsc(normalizados);
   }
 
   cargarReportes(): void {
     this.cargando = true;
-    
+
     this.apiService.getReportes().subscribe({
       next: (datos) => {
-        this.datosReporte = Array.isArray(datos) ? datos.map(this.normalizarReporteItem) : [];
+        this.datosReporte = this.mapearYOrdenarReportes(datos);
         this.datosFiltrados = [...this.datosReporte];
         this.cargando = false;
         this.cdr.markForCheck();
@@ -141,9 +194,9 @@ export class ReportesComponent implements OnInit, OnDestroy {
 
     this.apiService.getReportes(filtros).subscribe({
       next: (datos) => {
-        this.datosFiltrados = datos;
+        this.datosFiltrados = this.mapearYOrdenarReportes(datos);
         this.cargando = false;
-        this.toastr.success(`${datos.length} registros encontrados`, 'Búsqueda completada');
+        this.toastr.success(`${this.datosFiltrados.length} registros encontrados`, 'Búsqueda completada');
         this.cdr.markForCheck();
       },
       error: (error) => {
@@ -188,7 +241,7 @@ export class ReportesComponent implements OnInit, OnDestroy {
       // Crear libro de Excel
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(datos);
-      
+
       // Ajustar ancho de columnas
       const colWidths = [
         { wch: 5 },   // ID
@@ -228,14 +281,14 @@ export class ReportesComponent implements OnInit, OnDestroy {
 
     try {
       const doc = new jsPDF();
-      
+
       // Título
       doc.setFontSize(16);
       doc.setTextColor(31, 60, 115); // #1F3C73
       doc.text('MINISTERIO DE SALUD PÚBLICA', 105, 15, { align: 'center' });
       doc.setFontSize(12);
       doc.text('Reporte de Viáticos', 105, 22, { align: 'center' });
-      
+
       // Fecha del reporte
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
@@ -264,7 +317,7 @@ export class ReportesComponent implements OnInit, OnDestroy {
       // Guardar PDF
       const fecha = new Date();
       const nombreArchivo = `reporte_viaticos_${fecha.getFullYear()}${(fecha.getMonth()+1).toString().padStart(2,'0')}${fecha.getDate().toString().padStart(2,'0')}.pdf`;
-      
+
       doc.save(nombreArchivo);
       this.toastr.success('Reporte PDF generado correctamente');
     } catch (error) {

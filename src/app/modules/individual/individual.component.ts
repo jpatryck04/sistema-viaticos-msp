@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ChangeDetectorRef, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ChangeDetectorRef, ElementRef } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 import { BsDatepickerConfig } from 'ngx-bootstrap/datepicker';
@@ -14,27 +14,33 @@ import { Documento } from '../../core/models/documento.model';
 import { CalculoDietaPorDia, Viaje } from '../../core/models/viatico.model';
 import { ModalDocumentosComponent } from '../../shared/components/modal-documentos/modal-documentos.component';
 
+interface MesAnioImpresion {
+  mes: string;
+  anio: number;
+}
+
 @Component({
   selector: 'app-individual',
   standalone: false,
   templateUrl: './individual.component.html',
   styleUrls: ['./individual.component.scss']
 })
-export class IndividualComponent implements OnInit {
+export class IndividualComponent implements OnInit, OnDestroy {
   @ViewChild('modalDocumentos') modalDocumentos!: ModalDocumentosComponent;
   @ViewChild('fileTransporteInput') fileTransporteInput?: ElementRef<HTMLInputElement>;
-  
+  @ViewChild('printArea') printArea?: ElementRef<HTMLElement>;
+
   // Formularios
   busquedaForm: FormGroup;
   viajesForm: FormGroup;
-  
+
   // Datos
   empleado: Empleado | null = null;
   destinos: Destino[] = [];
   destinosFiltrados: Destino[] = [];
   provinciasTuristicas = PROVINCIAS_TURISTICAS;
   resultadosCalculo: CalculoDietaPorDia[] = [];
-  
+
   // Estados
   buscando = false;
   guardando = false;
@@ -47,6 +53,15 @@ export class IndividualComponent implements OnInit {
   transporteMontoTempPorViaje: Record<number, number> = {};
   transporteEvidenciasTempPorViaje: Record<number, Documento[]> = {};
   transportesPorViaje: Record<number, Array<{ fechaISO: string; monto: number; evidencias: Documento[] }>> = {};
+  private readonly handleKeydown = (event: KeyboardEvent): void => {
+    const isPrintShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p';
+    if (!isPrintShortcut) {
+      return;
+    }
+
+    event.preventDefault();
+    this.imprimirSoloFormato();
+  };
 
   // Opciones de fecha
   datePickerConfig: Partial<BsDatepickerConfig> = {
@@ -68,16 +83,34 @@ export class IndividualComponent implements OnInit {
     this.busquedaForm = this.fb.group({
       cedula: ['', [Validators.required, this.validacionesService.validadorCedula()]]
     });
-    
+
     // Formulario de viajes
     this.viajesForm = this.fb.group({
       mes: ['', [Validators.required, this.validacionesService.validadorMesActual()]],
+      actividad: ['COMISION DE SERVICIO', [Validators.required]],
       viajes: this.fb.array([])
     });
   }
 
+  get mesImpresion(): string {
+    return this.obtenerMesAnioImpresion().mes;
+  }
+
+  get anioImpresion(): number {
+    return this.obtenerMesAnioImpresion().anio;
+  }
+
+  get actividadImpresion(): string {
+    return (this.viajesForm.get('actividad')?.value || 'COMISION DE SERVICIO').toString().trim();
+  }
+
   ngOnInit(): void {
     this.cargarDestinos();
+    window.addEventListener('keydown', this.handleKeydown);
+  }
+
+  ngOnDestroy(): void {
+    window.removeEventListener('keydown', this.handleKeydown);
   }
 
   /**
@@ -159,13 +192,15 @@ export class IndividualComponent implements OnInit {
 
     this.apiService.getEmpleado(cedula).subscribe({
       next: (empleado) => {
+        // Asignar diaria según tarifas MAP (Resolución 173-2025) en lugar de Salud Pública
+        empleado.asignacionDiaria = this.calculosService.getAsignacionDiariaMAP(empleado.cargo);
         this.empleado = empleado;
         this.empleadoEncontrado = true;
         this.toastr.success(`Empleado encontrado: ${empleado.nombreCompleto}`, 'Éxito');
-        
+
         // Inicializar con un viaje
         this.agregarViaje();
-        
+
         // Notificar a Angular que la vista debe actualizarse
         this.cdr.markForCheck();
       },
@@ -202,7 +237,7 @@ export class IndividualComponent implements OnInit {
 
   filtrarDestinos(esTuristica: boolean): void {
     if (esTuristica) {
-      this.destinosFiltrados = this.destinos.filter(d => 
+      this.destinosFiltrados = this.destinos.filter(d =>
         this.provinciasTuristicas.includes(d.nombre)
       );
     } else {
@@ -215,7 +250,7 @@ export class IndividualComponent implements OnInit {
   // ============================================
   crearViajeFormGroup(): FormGroup {
     const fechaHoy = new Date().toISOString().split('T')[0];
-    
+
     const viajeGroup = this.fb.group({
       fechaSalida: [fechaHoy, [Validators.required]],
       horaSalida: ['08:00 AM', [Validators.required, Validators.pattern(/^(0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/)]],
@@ -223,7 +258,7 @@ export class IndividualComponent implements OnInit {
       horaRetorno: ['05:00 PM', [Validators.required, Validators.pattern(/^(0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/)]],
       esTuristica: [false],
       idDestino: ['', [Validators.required]],
-      documentos: [[], [this.validarDocumentosRequeridos.bind(this)]],
+      documentos: [[]],
       // Transporte
       esChofer: [false],
       costoTransporte: [0],
@@ -232,18 +267,18 @@ export class IndividualComponent implements OnInit {
       validators: (formGroup: AbstractControl) => {
         const salida = formGroup.get('fechaSalida')?.value;
         const retorno = formGroup.get('fechaRetorno')?.value;
-        
+
         if (!salida || !retorno) {
           return null;
         }
-        
+
         const fechaSalida = this.parseDateLocal(salida);
         const fechaRetorno = this.parseDateLocal(retorno);
-        
+
         if (fechaRetorno < fechaSalida) {
           return { fechaRetornoMenor: true };
         }
-        
+
         return null;
       }
     });
@@ -252,7 +287,7 @@ export class IndividualComponent implements OnInit {
     viajeGroup.get('esChofer')?.valueChanges.subscribe((esChofer) => {
       const comprobantesControl = viajeGroup.get('comprobantesTransporte');
       const costoControl = viajeGroup.get('costoTransporte');
-      
+
       if (esChofer) {
         // Si está marcado el checkbox de transporte, ocultamos el manual physical
         // y NO requerimos comprobantes/costo (lo calcula a nivel diario)
@@ -261,11 +296,10 @@ export class IndividualComponent implements OnInit {
         comprobantesControl?.setValidators([]);
         costoControl?.setValidators([]);
       } else {
-        // Si NO utiliza el panel de día, requerimos que use el campo anual
-        comprobantesControl?.setValidators([this.validarComprobantesTransporte.bind(this)]);
-        costoControl?.setValidators([Validators.required, Validators.min(0)]);
+        comprobantesControl?.setValidators([]);
+        costoControl?.setValidators([]);
       }
-      
+
       comprobantesControl?.updateValueAndValidity({ emitEvent: false });
       costoControl?.updateValueAndValidity({ emitEvent: false });
     });
@@ -306,7 +340,7 @@ export class IndividualComponent implements OnInit {
       this.sincronizarTransporteParaViaje(index);
       this.calcularTodosLosViajes();
     });
-    
+
     // Si es el primer viaje, calcular inmediatamente
     if (this.viajesArray.length === 1) {
       this.calcularTodosLosViajes();
@@ -343,7 +377,7 @@ export class IndividualComponent implements OnInit {
     this.transporteEvidenciasTempPorViaje = nuevasEvid;
 
     this.calcularTodosLosViajes();
-    
+
     if (this.viajesArray.length === 0) {
       this.agregarViaje();
     }
@@ -454,7 +488,7 @@ export class IndividualComponent implements OnInit {
   onDocumentosSeleccionados(documentos: Documento[]): void {
     const viajeForm = this.viajesArray.at(this.viajeActualIndex);
     viajeForm.patchValue({ documentos });
-    
+
     if (documentos.length > 0) {
       this.toastr.success(`${documentos.length} documento(s) adjuntado(s)`, 'Éxito');
     }
@@ -473,7 +507,7 @@ export class IndividualComponent implements OnInit {
   onComprobantesSeleccionados(comprobantes: Documento[]): void {
     const viajeForm = this.viajesArray.at(this.viajeActualIndex);
     viajeForm.patchValue({ comprobantesTransporte: comprobantes });
-    
+
     if (comprobantes.length > 0) {
       this.toastr.success(`${comprobantes.length} comprobante(s) de transporte adjuntado(s)`, 'Éxito');
     }
@@ -492,10 +526,10 @@ export class IndividualComponent implements OnInit {
 
     this.viajesArray.controls.forEach((viajeForm, index) => {
       const viaje = viajeForm.value;
-      
+
       // Buscar el destino seleccionado
       const destino = this.destinos.find(d => d.id === Number(viaje.idDestino));
-      
+
       if (destino && viaje.fechaSalida && viaje.fechaRetorno) {
         const transportes = this.transportesPorViaje[index] ?? [];
         const mapaTransporte = new Map<string, number>();
@@ -509,7 +543,8 @@ export class IndividualComponent implements OnInit {
           viaje.horaRetorno,
           destino.nombre,
           viaje.esTuristica,
-          0
+          0,
+          viaje.esChofer
         );
 
         const resultadosConTransporte = resultados.map((r) => {
@@ -526,7 +561,7 @@ export class IndividualComponent implements OnInit {
 
     // Ordenar por fecha
     todosLosDias.sort((a, b) => a.dia.getTime() - b.dia.getTime());
-    
+
     this.resultadosCalculo = todosLosDias;
   }
 
@@ -549,17 +584,6 @@ export class IndividualComponent implements OnInit {
       return;
     }
 
-    // Validar que cada viaje tenga documentos adjuntos
-    for (let i = 0; i < this.viajesArray.length; i++) {
-      const viajeForm = this.viajesArray.at(i);
-      const documentos = viajeForm.get('documentos')?.value;
-      
-      if (!documentos || documentos.length === 0) {
-        this.toastr.warning(`El viaje #${i + 1} debe tener al menos un documento adjunto`, 'Documentos requeridos');
-        return;
-      }
-    }
-
     // Luego validar que todos los campos requeridos estén completos
     if (this.viajesForm.invalid) {
       this.toastr.warning('Complete todos los campos requeridos correctamente (fechas, horas, destino)', 'Validación');
@@ -567,7 +591,7 @@ export class IndividualComponent implements OnInit {
     }
 
     this.guardando = true;
-    
+
     // Construir el payload para el backend
     const viajesPayload: Partial<Viaje>[] = this.viajesArray.controls.map((viajeForm, index) => {
       const viaje = viajeForm.value;
@@ -646,5 +670,70 @@ export class IndividualComponent implements OnInit {
 
   getTotalDieta(): number {
     return this.resultadosCalculo.reduce((sum, item) => sum + item.totalDieta, 0);
+  }
+
+  private imprimirContenido(elemento: HTMLElement): void {
+    const ventana = window.open('', '_blank', 'width=1024,height=768');
+    if (!ventana) {
+      this.toastr.warning('El navegador bloqueó la ventana de impresión', 'Impresión');
+      return;
+    }
+
+    const estilos = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((n) => n.outerHTML)
+      .join('\n');
+
+    ventana.document.open();
+    ventana.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <base href="${document.baseURI}" />
+    ${estilos}
+    <style>
+      body { margin: 0; padding: 0; background: #fff; }
+      .print-only { display: block !important; }
+      .no-print { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="print-only">${elemento.innerHTML}</div>
+  </body>
+</html>`);
+    ventana.document.close();
+    ventana.focus();
+    setTimeout(() => {
+      ventana.print();
+      ventana.close();
+    }, 250);
+  }
+
+  imprimirSoloFormato(): void {
+    if (!this.printArea?.nativeElement) {
+      this.toastr.warning('No hay formato listo para imprimir', 'Impresión');
+      return;
+    }
+
+    this.imprimirContenido(this.printArea.nativeElement);
+  }
+
+  private obtenerMesAnioImpresion(): MesAnioImpresion {
+    const valorMes = this.viajesForm.get('mes')?.value as string | undefined;
+    if (valorMes && /^\d{4}-\d{2}$/.test(valorMes)) {
+      const [anioStr, mesStr] = valorMes.split('-');
+      const anio = Number(anioStr);
+      const mesNumero = Number(mesStr);
+      const fecha = new Date(anio, mesNumero - 1, 1);
+      return {
+        mes: fecha.toLocaleDateString('es-DO', { month: 'long' }).toUpperCase(),
+        anio
+      };
+    }
+
+    const fechaBase = this.resultadosCalculo[0]?.dia ?? new Date();
+    return {
+      mes: fechaBase.toLocaleDateString('es-DO', { month: 'long' }).toUpperCase(),
+      anio: fechaBase.getFullYear()
+    };
   }
 }

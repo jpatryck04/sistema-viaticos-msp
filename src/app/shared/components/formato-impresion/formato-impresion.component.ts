@@ -15,6 +15,19 @@ export class FormatoImpresionComponent {
   @Input() viajes: CalculoDietaPorDia[] = [];
   @Input() mes: string = '';
   @Input() anio: number = 0;
+  @Input() actividad: string = 'COMISION DE SERVICIO';
+
+  // Mantener la misma altura visual de la tabla en cada hoja
+  private readonly filasBase = 12;
+
+  get filasImpresion(): Array<CalculoDietaPorDia | null> {
+    const filas: Array<CalculoDietaPorDia | null> = [...this.viajes];
+    const faltantes = Math.max(0, this.filasBase - filas.length);
+    for (let i = 0; i < faltantes; i++) {
+      filas.push(null);
+    }
+    return filas;
+  }
 
   getTotalDieta(): number {
     return this.viajes.reduce((sum, item) => sum + item.totalDieta, 0);
