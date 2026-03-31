@@ -20,7 +20,7 @@ export class ModalDocumentosComponent {
   mostrarModal = false;
   documentos: Documento[] = [];
   archivosSeleccionados: File[] = [];
-  tipoActual: 'documentos' | 'comprobantes' = 'documentos'; // Para saber qué tipo estamos manejando
+  tipoActual: 'documentos' | 'comprobantes' = 'documentos';
   
   constructor(
     private documentosService: DocumentosService,
@@ -52,7 +52,6 @@ export class ModalDocumentosComponent {
       }
     }
     
-    // Limpiar el input para permitir seleccionar el mismo archivo otra vez
     event.target.value = '';
   }
 

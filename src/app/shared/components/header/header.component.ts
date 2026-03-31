@@ -34,17 +34,12 @@ export class HeaderComponent {
   }
   
   confirmarLogout(): void {
-    // Limpiar almacenamiento local
     localStorage.clear();
     sessionStorage.clear();
     
-    // Cerrar modal
     this.modalRef?.hide();
-    
-    // Mostrar notificación de éxito
     this.toastr.success('Sesión cerrada correctamente', 'Hasta luego');
     
-    // Redirigir a la página principal después de 1 segundo
     setTimeout(() => {
       this.router.navigate(['/']);
     }, 1000);

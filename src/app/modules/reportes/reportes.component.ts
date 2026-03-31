@@ -213,10 +213,7 @@ export class ReportesComponent implements OnInit, OnDestroy {
     this.cargarReportes();
   }
 
-  // ============================================
-  // EXPORTACIONES
-  // ============================================
-  exportarExcel(): void {
+    exportarExcel(): void {
     if (this.datosFiltrados.length === 0) {
       this.toastr.warning('No hay datos para exportar', 'Validación');
       return;
@@ -328,10 +325,7 @@ export class ReportesComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ============================================
-  // UTILIDADES
-  // ============================================
-  formatearMoneda(valor: number): string {
+    formatearMoneda(valor: number): string {
     return new Intl.NumberFormat('es-DO', {
       style: 'currency',
       currency: 'DOP',
@@ -374,3 +368,4 @@ export class ReportesComponent implements OnInit, OnDestroy {
     return this.getTotalGeneral() / this.datosFiltrados.length;
   }
 }
+

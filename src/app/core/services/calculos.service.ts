@@ -76,21 +76,11 @@ export class CalculosService {
     return 3900;
   }
 
-  /**
-   * Parsea una fecha en formato ISO (YYYY-MM-DD) como fecha local,
-   * evitando problemas de zona horaria UTC
-   *
-   * @param dateString Fecha en formato YYYY-MM-DD o Date object
-   * @returns Date object en zona horaria local
-   */
   private parseDateLocal(dateString: string | Date): Date {
     if (dateString instanceof Date) {
-      return new Date(dateString); // Ya es Date, solo copiar
+      return new Date(dateString);
     }
-
-    // Parsear string YYYY-MM-DD
     const [year, month, day] = dateString.split('-').map(Number);
-    // Usar constructor con números para crear fecha en zona local, no UTC
     return new Date(year, month - 1, day);
   }
 
@@ -117,8 +107,8 @@ export class CalculosService {
 
   /**
    * Calcula los viáticos para un viaje, generando un array de días
+   * Ventanas de tiempo para dieta (minutos desde 00:00)
    */
-  // Ventanas de tiempo para dieta (minutos desde 00:00)
   private readonly DESAYUNO_INI = 6 * 60;
   private readonly DESAYUNO_FIN = 10 * 60;
   private readonly ALMUERZO_INI = 11 * 60;
@@ -303,9 +293,6 @@ export class CalculosService {
     return { desayuno, almuerzo, cena, alojamiento, totalDieta };
   }
 
-  /**
-   * Convierte hora en formato "hh:mm AM/PM" a número decimal
-   */
   convertirHoraANumero(hora: string): number {
     const [time, modifier] = hora.split(' ');
     let [hours, minutes] = time.split(':').map(Number);
@@ -349,9 +336,6 @@ export class CalculosService {
     }
   }
 
-  /**
-   * Formatea una fecha a string DD/MM/YYYY
-   */
   formatearFecha(fecha: Date): string {
     const dia = fecha.getDate().toString().padStart(2, '0');
     const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');

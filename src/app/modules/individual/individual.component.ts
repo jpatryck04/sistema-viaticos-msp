@@ -30,11 +30,9 @@ export class IndividualComponent implements OnInit, OnDestroy {
   @ViewChild('fileTransporteInput') fileTransporteInput?: ElementRef<HTMLInputElement>;
   @ViewChild('printArea') printArea?: ElementRef<HTMLElement>;
 
-  // Formularios
   busquedaForm: FormGroup;
   viajesForm: FormGroup;
 
-  // Datos
   empleado: Empleado | null = null;
   destinos: Destino[] = [];
   destinosFiltrados: Destino[] = [];
@@ -42,13 +40,11 @@ export class IndividualComponent implements OnInit, OnDestroy {
   provinciasNoTuristicas = PROVINCIAS_NO_TURISTICAS;
   resultadosCalculo: CalculoDietaPorDia[] = [];
 
-  // Estados
   buscando = false;
   guardando = false;
   empleadoEncontrado = false;
   viajeActualIndex = 0;
 
-  // Transporte por viaje
   mostrarPanelTransportePorViaje: Record<number, boolean> = {};
   transporteDiaSeleccionadoPorViaje: Record<number, string> = {};
   transporteMontoTempPorViaje: Record<number, number> = {};
@@ -64,7 +60,6 @@ export class IndividualComponent implements OnInit, OnDestroy {
     this.imprimirSoloFormato();
   };
 
-  // Opciones de fecha
   datePickerConfig: Partial<BsDatepickerConfig> = {
     dateInputFormat: 'DD/MM/YYYY',
     containerClass: 'theme-blue',
@@ -80,12 +75,10 @@ export class IndividualComponent implements OnInit, OnDestroy {
     private toastr: ToastrService,
     private cdr: ChangeDetectorRef
   ) {
-    // Formulario de búsqueda
     this.busquedaForm = this.fb.group({
       cedula: ['', [Validators.required, this.validacionesService.validadorCedula()]]
     });
 
-    // Formulario de viajes
     this.viajesForm = this.fb.group({
       mes: ['', [Validators.required, this.validacionesService.validadorMesActual()]],
       actividad: ['', [Validators.required]],
@@ -227,9 +220,6 @@ export class IndividualComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ============================================
-  // DESTINOS
-  // ============================================
   cargarDestinos(): void {
     this.apiService.getDestinos().subscribe({
       next: (destinos) => {
@@ -479,10 +469,7 @@ export class IndividualComponent implements OnInit, OnDestroy {
     this.calcularTodosLosViajes();
   }
 
-  // ============================================
-  // MANEJO DE DOCUMENTOS
-  // ============================================
-  abrirModalDocumentos(index: number): void {
+    abrirModalDocumentos(index: number): void {
     this.viajeActualIndex = index;
     const viajeForm = this.viajesArray.at(index);
     const documentosActuales = viajeForm.get('documentos')?.value || [];
@@ -498,10 +485,7 @@ export class IndividualComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ============================================
-  // MANEJO DE COMPROBANTES DE TRANSPORTE
-  // ============================================
-  abrirModalComprobantes(index: number): void {
+    abrirModalComprobantes(index: number): void {
     this.viajeActualIndex = index;
     const viajeForm = this.viajesArray.at(index);
     const comprobantesActuales = viajeForm.get('comprobantesTransporte')?.value || [];
@@ -569,10 +553,7 @@ export class IndividualComponent implements OnInit, OnDestroy {
     this.resultadosCalculo = todosLosDias;
   }
 
-  // ============================================
-  // ACCIONES PRINCIPALES
-  // ============================================
-  nuevoRegistro(): void {
+    nuevoRegistro(): void {
     this.empleado = null;
     this.empleadoEncontrado = false;
     this.busquedaForm.reset();
@@ -649,10 +630,7 @@ export class IndividualComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ============================================
-  // UTILIDADES
-  // ============================================
-  trackByIndex(index: number): number {
+    trackByIndex(index: number): number {
     return index;
   }
 
@@ -741,3 +719,4 @@ export class IndividualComponent implements OnInit, OnDestroy {
     };
   }
 }
+

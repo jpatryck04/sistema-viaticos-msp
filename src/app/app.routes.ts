@@ -14,15 +14,11 @@ export const routes: Routes = [
     redirectTo: '/individual',
     pathMatch: 'full'
   },
-  
-  // 👤 Módulo de viáticos individuales
-  {
+    {
     path: 'individual',
     loadChildren: () => import('./modules/individual/individual.module').then(m => m.IndividualModule)
   },
-  
-  // 👥 Módulo de viáticos grupales
-  {
+    {
     path: 'grupal',
     loadChildren: () => import('./modules/grupal/grupal.module').then(m => m.GrupalModule)
   },

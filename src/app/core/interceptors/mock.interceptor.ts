@@ -58,8 +58,6 @@ export class MockInterceptor implements HttpInterceptor {
   constructor() { }
 
   intercept(request: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
-    
-    // GET /api/destinos
     if (request.method === 'GET' && request.url.includes('/destinos')) {
       return of(new HttpResponse({
         status: 200,
@@ -67,7 +65,6 @@ export class MockInterceptor implements HttpInterceptor {
       })).pipe(delay(500));
     }
 
-    // GET /api/empleados/{cedula}
     if (request.method === 'GET' && request.url.includes('/empleados/')) {
       const cedula = request.url.split('/empleados/')[1];
       const empleado = this.mockEmpleados[cedula];
@@ -86,7 +83,6 @@ export class MockInterceptor implements HttpInterceptor {
     }
 
     // POST /api/viaticos/*
-    if (request.method === 'POST' && request.url.includes('/viaticos')) {
       return of(new HttpResponse({
         status: 201,
         body: {
@@ -98,7 +94,6 @@ export class MockInterceptor implements HttpInterceptor {
     }
 
     // GET /api/viaticos/disponibilidad
-    if (request.method === 'GET' && request.url.includes('/disponibilidad')) {
       return of(new HttpResponse({
         status: 200,
         body: {
@@ -109,6 +104,5 @@ export class MockInterceptor implements HttpInterceptor {
     }
 
     // Para cualquier otra solicitud, pasar al siguiente handler
-    return next.handle(request);
-  }
+    
 }

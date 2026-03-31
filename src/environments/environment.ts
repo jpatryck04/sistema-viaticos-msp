@@ -19,7 +19,6 @@
 
 export const environment = {
   production: false,
-  // ⬇️ CONFIGURA LA URL DE TU API AQUÍ
   apiUrl: 'http://localhost:4000/api',
   version: '1.0.0',
   appName: 'Sistema de Gestión de Viáticos - MSP',
